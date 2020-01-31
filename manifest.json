@@ -1,0 +1,13 @@
+{
+  "domain": "mqtteventstream",
+  "name": "MQTT Event Stream",
+  "documentation": "https://github.com/constructorfleet/HomeAssistant-Component-MQTTEventStream",
+  "requirements": [
+  ],
+  "dependencies": [
+    "mqtt"
+  ],
+  "codeowners": [
+    "@teagan42"
+  ]
+}
