@@ -1,9 +1,10 @@
 """Connect two Home Assistant instances via MQTT."""
 import asyncio
 import json
+import logging
 
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-
 from homeassistant.components.mqtt import (
     ATTR_TOPIC,
     valid_publish_topic,
@@ -21,8 +22,9 @@ from homeassistant.const import (
     MATCH_ALL,
 )
 from homeassistant.core import EventOrigin, State, callback
-import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.json import JSONEncoder
+
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "mqtteventstream"
 
@@ -103,12 +105,6 @@ def async_setup(hass, config):
         event = json.loads(msg.payload)
         event_type = event.get(ATTR_EVENT_TYPE)
         event_data = event.get(ATTR_EVENT_DATA)
-        
-        if event_type == EVENT_CALL_SERVICE and event_data:
-            hass.loop.create_task(hass.services.async_call(
-                event_data.get(ATTR_DOMAIN),
-                event_data.get(ATTR_SERVICE),
-                event_data.get(ATTR_SERVICE_DATA, {})))
 
         # Special case handling for event STATE_CHANGED
         # We will try to convert state dicts back to State objects
@@ -130,6 +126,24 @@ def async_setup(hass, config):
                 True
             )
             return
+        
+        if event_type == EVENT_CALL_SERVICE and event_data:
+            hass.loop.create_task(hass.services.async_call(
+                event_data.get(ATTR_DOMAIN),
+                event_data.get(ATTR_SERVICE),
+                event_data.get(ATTR_SERVICE_DATA, {})))
+
+        if event_type == EVENT_SERVICE_REGISTERED and event_data:
+            domain = event_data.get(ATTR_DOMAIN)
+            service = event_data.get(ATTR_SERVICE)
+            if not hass.services.has_service(domain, service):
+                hass.services.async_register(
+                    domain,
+                    service,
+                    lambda svc: _LOGGER.info("Calling remote service %s on domain %s",
+                                             service,
+                                             domain)
+                )
 
         hass.bus.async_fire(
             event_type, event_data=event_data, origin=EventOrigin.remote
