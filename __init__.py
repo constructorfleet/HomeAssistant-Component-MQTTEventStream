@@ -119,13 +119,14 @@ def async_setup(hass, config):
             entity_id = event_data.get(ATTR_ENTITY_ID)
             new_state = event_data.get(ATTR_NEW_STATE, {})
 
-            hass.states.async_set(
-                entity_id,
-                new_state.state,
-                new_state.attributes,
-                True
-            )
-            return
+            if new_state:
+                hass.states.async_set(
+                    entity_id,
+                    new_state.state,
+                    new_state.attributes,
+                    True
+                )
+                return
         
         if event_type == EVENT_CALL_SERVICE and event_data:
             hass.loop.create_task(hass.services.async_call(
