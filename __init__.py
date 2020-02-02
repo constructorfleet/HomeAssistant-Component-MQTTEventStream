@@ -74,7 +74,12 @@ def async_setup(hass, config):
 
         event_info = {"event_type": event.event_type, "event_data": event.data}
         msg = json.dumps(event_info, cls=JSONEncoder)
-        mqtt.async_publish(pub_topic, msg)
+
+        if event.event_type == EVENT_STATE_CHANGED:
+            topic = "%s/%s" % (pub_topic, event.data.get("entity_id"))
+            mqtt.async_publish(topic, msg, 1, True)
+        else:
+            mqtt.async_publish(pub_topic, msg)
 
     # Only listen for local events if you are going to publish them.
     if pub_topic:
