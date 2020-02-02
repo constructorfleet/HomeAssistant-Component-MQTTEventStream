@@ -4,12 +4,18 @@ import json
 
 import voluptuous as vol
 
-from homeassistant.components.mqtt import valid_publish_topic, valid_subscribe_topic
+from homeassistant.components.mqtt import (
+    ATTR_TOPIC,
+    valid_publish_topic,
+    valid_subscribe_topic,
+)
 from homeassistant.const import (
     ATTR_DOMAIN,
+    ATTR_ENTITY_ID,
     ATTR_SERVICE,
     ATTR_SERVICE_DATA,
     EVENT_CALL_SERVICE,
+    EVENT_SERVICE_REGISTERED,
     EVENT_STATE_CHANGED,
     EVENT_TIME_CHANGED,
     MATCH_ALL,
@@ -19,9 +25,14 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.json import JSONEncoder
 
 DOMAIN = "mqtteventstream"
+
+ATTR_EVENT_TYPE = "event_type"
+ATTR_EVENT_DATA = "event_data"
+ATTR_NEW_STATE = "new_state"
+ATTR_OLD_STATE = "old_state"
+
 CONF_PUBLISH_TOPIC = "publish_topic"
 CONF_SUBSCRIBE_TOPIC = "subscribe_topic"
-CONF_PUBLISH_EVENTSTREAM_RECEIVED = "publish_eventstream_received"
 CONF_IGNORE_EVENT = "ignore_event"
 
 CONFIG_SCHEMA = vol.Schema(
@@ -30,9 +41,6 @@ CONFIG_SCHEMA = vol.Schema(
             {
                 vol.Optional(CONF_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
-                vol.Optional(
-                    CONF_PUBLISH_EVENTSTREAM_RECEIVED, default=False
-                ): cv.boolean,
                 vol.Optional(CONF_IGNORE_EVENT, default=[]): cv.ensure_list,
             }
         )
@@ -66,17 +74,20 @@ def async_setup(hass, config):
         # to the MQTT topic, or you will end up in an infinite loop.
         if event.event_type == EVENT_CALL_SERVICE:
             if (
-                event.data.get("domain") == mqtt.DOMAIN
-                and event.data.get("service") == mqtt.SERVICE_PUBLISH
-                and event.data[ATTR_SERVICE_DATA].get("topic") == pub_topic
+                event.data.get(ATTR_DOMAIN) == mqtt.DOMAIN
+                and event.data.get(ATTR_SERVICE) == mqtt.SERVICE_PUBLISH
+                and event.data[ATTR_SERVICE_DATA].get(ATTR_TOPIC) == pub_topic
             ):
                 return
 
-        event_info = {"event_type": event.event_type, "event_data": event.data}
+        event_info = {
+            ATTR_EVENT_TYPE: event.event_type,
+            ATTR_EVENT_DATA: event.data
+        }
         msg = json.dumps(event_info, cls=JSONEncoder)
 
         if event.event_type == EVENT_STATE_CHANGED:
-            topic = "%s/%s" % (pub_topic, event.data.get("entity_id"))
+            topic = "%s/%s" % (pub_topic, event.data.get(ATTR_ENTITY_ID))
             mqtt.async_publish(topic, msg, 1, True)
         else:
             mqtt.async_publish(pub_topic, msg)
@@ -90,8 +101,8 @@ def async_setup(hass, config):
     def _event_receiver(msg):
         """Receive events published by and fire them on this hass instance."""
         event = json.loads(msg.payload)
-        event_type = event.get("event_type")
-        event_data = event.get("event_data")
+        event_type = event.get(ATTR_EVENT_TYPE)
+        event_data = event.get(ATTR_EVENT_DATA)
         
         if event_type == EVENT_CALL_SERVICE and event_data:
             hass.loop.create_task(hass.services.async_call(
@@ -104,16 +115,18 @@ def async_setup(hass, config):
         # Copied over from the _handle_api_post_events_event method
         # of the api component.
         if event_type == EVENT_STATE_CHANGED and event_data:
-            for key in ("old_state", "new_state"):
+            for key in (ATTR_OLD_STATE, ATTR_NEW_STATE):
                 state = State.from_dict(event_data.get(key))
 
                 if state:
                     event_data[key] = state
+            entity_id = event_data.get(ATTR_ENTITY_ID)
+            new_state = event_data.get(ATTR_NEW_STATE, {})
 
             hass.states.async_set(
-                event_data.get("entity_id"),
-                event_data.get("new_state", {}).state,
-                event_data.get("new_state", {}).attributes,
+                entity_id,
+                new_state.state,
+                new_state.attributes,
                 True
             )
             return
