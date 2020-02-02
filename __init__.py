@@ -112,8 +112,8 @@ def async_setup(hass, config):
 
             hass.states.async_set(
                 event_data.get("entity_id"),
-                event_data.get("new_state", {}).get("state", None),
-                event_data.get("new_state", {}).get("attributes", None),
+                event_data.get("new_state", {}).state,
+                event_data.get("new_state", {}).attributes,
                 True
             )
             return
