@@ -105,6 +105,14 @@ def async_setup(hass, config):
                 if state:
                     event_data[key] = state
 
+            hass.states.async_set(
+                event_data.get("entity_id"),
+                event_data.get("new_state", {}).get("state", None),
+                event_data.get("new_state", {}).get("attributes", None),
+                True
+            )
+            return
+
         hass.bus.async_fire(
             event_type, event_data=event_data, origin=EventOrigin.remote
         )
