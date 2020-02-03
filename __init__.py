@@ -11,10 +11,12 @@ from homeassistant.components.mqtt import (
     valid_subscribe_topic,
 )
 from homeassistant.const import (
+    ATTR_NAME,
     ATTR_DOMAIN,
     ATTR_ENTITY_ID,
     ATTR_SERVICE,
     ATTR_SERVICE_DATA,
+    CONF_NAME,
     EVENT_CALL_SERVICE,
     EVENT_SERVICE_REGISTERED,
     EVENT_STATE_CHANGED,
@@ -32,6 +34,7 @@ ATTR_EVENT_TYPE = "event_type"
 ATTR_EVENT_DATA = "event_data"
 ATTR_NEW_STATE = "new_state"
 ATTR_OLD_STATE = "old_state"
+ATTR_SOURCE = "source"
 
 CONF_PUBLISH_TOPIC = "publish_topic"
 CONF_SUBSCRIBE_TOPIC = "subscribe_topic"
@@ -41,6 +44,7 @@ CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
             {
+                vol.Required(CONF_NAME): str,
                 vol.Optional(CONF_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_IGNORE_EVENT, default=[]): cv.ensure_list,
@@ -82,6 +86,7 @@ def async_setup(hass, config):
             ):
                 return
 
+        event.data[ATTR_SOURCE] = conf.get(CONF_NAME)
         event_info = {
             ATTR_EVENT_TYPE: event.event_type,
             ATTR_EVENT_DATA: event.data
@@ -118,6 +123,7 @@ def async_setup(hass, config):
                     event_data[key] = state
             entity_id = event_data.get(ATTR_ENTITY_ID)
             new_state = event_data.get(ATTR_NEW_STATE, {})
+            new_state.attributes[ATTR_SOURCE] = conf.get(CONF_NAME)
 
             if new_state:
                 hass.states.async_set(
