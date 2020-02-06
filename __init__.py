@@ -37,6 +37,7 @@ ATTR_OLD_STATE = "old_state"
 ATTR_SOURCE = "source"
 
 CONF_PUBLISH_TOPIC = "publish_topic"
+CONF_STATE_PUBLISH_TOPIC_BASE = "public_state_topic_base"
 CONF_SUBSCRIBE_TOPIC = "subscribe_topic"
 CONF_IGNORE_EVENT = "ignore_event"
 
@@ -46,6 +47,7 @@ CONFIG_SCHEMA = vol.Schema(
             {
                 vol.Required(CONF_NAME): str,
                 vol.Optional(CONF_PUBLISH_TOPIC): valid_publish_topic,
+                vol.Optional(CONF_STATE_PUBLISH_TOPIC_BASE): valid_publish_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_IGNORE_EVENT, default=[]): cv.ensure_list,
             }
@@ -61,6 +63,7 @@ def async_setup(hass, config):
     mqtt = hass.components.mqtt
     conf = config.get(DOMAIN, {})
     pub_topic = conf.get(CONF_PUBLISH_TOPIC)
+    state_topic = conf.get(CONF_STATE_PUBLISH_TOPIC_BASE, pub_topic)
     sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC)
     ignore_event = conf.get(CONF_IGNORE_EVENT)
 
@@ -93,11 +96,10 @@ def async_setup(hass, config):
         }
         msg = json.dumps(event_info, cls=JSONEncoder)
 
-        if event.event_type == EVENT_STATE_CHANGED:
-            topic = "%s/%s" % (pub_topic, event.data.get(ATTR_ENTITY_ID))
+        if state_topic and event.event_type == EVENT_STATE_CHANGED:
+            topic = "%s/%s" % (state_topic, event.data.get(ATTR_ENTITY_ID))
             mqtt.async_publish(topic, msg, 1, True)
-        else:
-            mqtt.async_publish(pub_topic, msg)
+        mqtt.async_publish(pub_topic, msg)
 
     # Only listen for local events if you are going to publish them.
     if pub_topic:
