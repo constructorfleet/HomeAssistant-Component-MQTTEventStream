@@ -11,7 +11,6 @@ from homeassistant.components.mqtt import (
     valid_subscribe_topic,
 )
 from homeassistant.const import (
-    ATTR_NAME,
     ATTR_DOMAIN,
     ATTR_ENTITY_ID,
     ATTR_SERVICE,
@@ -62,6 +61,7 @@ def async_setup(hass, config):
     """Set up the MQTT eventstream component."""
     mqtt = hass.components.mqtt
     conf = config.get(DOMAIN, {})
+    name = config[CONF_NAME]
     pub_topic = conf.get(CONF_PUBLISH_TOPIC)
     state_topic = conf.get(CONF_STATE_TOPIC, pub_topic)
     sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC)
@@ -83,9 +83,9 @@ def async_setup(hass, config):
         # to the MQTT topic, or you will end up in an infinite loop.
         if event.event_type == EVENT_CALL_SERVICE:
             if (
-                event.data.get(ATTR_DOMAIN) == mqtt.DOMAIN
-                and event.data.get(ATTR_SERVICE) == mqtt.SERVICE_PUBLISH
-                and event.data[ATTR_SERVICE_DATA].get(ATTR_TOPIC) == pub_topic
+                    event.data.get(ATTR_DOMAIN) == mqtt.DOMAIN
+                    and event.data.get(ATTR_SERVICE) == mqtt.SERVICE_PUBLISH
+                    and event.data[ATTR_SERVICE_DATA].get(ATTR_TOPIC) == pub_topic
             ):
                 return
 
@@ -99,7 +99,8 @@ def async_setup(hass, config):
         if state_topic and event.event_type == EVENT_STATE_CHANGED:
             topic = "%s/%s" % (state_topic, event.data.get(ATTR_ENTITY_ID))
             mqtt.async_publish(topic, msg, 1, True)
-        mqtt.async_publish(pub_topic, msg)
+        else:
+            mqtt.async_publish(pub_topic, msg)
 
     # Only listen for local events if you are going to publish them.
     if pub_topic:
@@ -112,6 +113,10 @@ def async_setup(hass, config):
         event = json.loads(msg.payload)
         event_type = event.get(ATTR_EVENT_TYPE)
         event_data = event.get(ATTR_EVENT_DATA)
+
+        # Ignore if originated from this instance
+        if event_data.get(ATTR_SOURCE, None) == name:
+            return
 
         # Special case handling for event STATE_CHANGED
         # We will try to convert state dicts back to State objects
@@ -135,7 +140,7 @@ def async_setup(hass, config):
                     True
                 )
                 return
-        
+
         if event_type == EVENT_CALL_SERVICE and event_data:
             hass.loop.create_task(hass.services.async_call(
                 event_data.get(ATTR_DOMAIN),
