@@ -62,10 +62,10 @@ def async_setup(hass, config):
     mqtt = hass.components.mqtt
     conf = config.get(DOMAIN, {})
     name = config[CONF_NAME]
-    pub_topic = conf.get(CONF_PUBLISH_TOPIC)
-    state_topic = conf.get(CONF_STATE_TOPIC, pub_topic)
-    sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC)
-    ignore_event = conf.get(CONF_IGNORE_EVENT)
+    pub_topic = conf.get(CONF_PUBLISH_TOPIC, None)
+    state_topic = conf.get(CONF_STATE_TOPIC, None)
+    sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC, None)
+    ignore_event = conf.get(CONF_IGNORE_EVENT, [])
 
     @callback
     def _event_publisher(event):
@@ -98,6 +98,8 @@ def async_setup(hass, config):
 
         if event.event_type == EVENT_STATE_CHANGED:
             for topic_base in [state_topic, pub_topic]:
+                if not topic_base:
+                    continue
                 topic = "%s/%s" % (topic_base, event.data.get(ATTR_ENTITY_ID))
                 mqtt.async_publish(topic, msg, 1, True)
         else:
