@@ -15,7 +15,6 @@ from homeassistant.const import (
     ATTR_ENTITY_ID,
     ATTR_SERVICE,
     ATTR_SERVICE_DATA,
-    CONF_NAME,
     EVENT_CALL_SERVICE,
     EVENT_SERVICE_REGISTERED,
     EVENT_STATE_CHANGED,
@@ -43,7 +42,6 @@ CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
             {
-                vol.Optional(CONF_NAME): str,
                 vol.Optional(CONF_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_IGNORE_EVENT, default=[]): cv.ensure_list,
@@ -59,7 +57,6 @@ def async_setup(hass, config):
     """Set up the MQTT eventstream component."""
     mqtt = hass.components.mqtt
     conf = config.get(DOMAIN, {})
-    name = config.get(CONF_NAME)
     pub_topic = conf.get(CONF_PUBLISH_TOPIC, None)
     sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC, None)
     ignore_event = conf.get(CONF_IGNORE_EVENT, [])
@@ -86,7 +83,6 @@ def async_setup(hass, config):
             ):
                 return
 
-        event.data[ATTR_SOURCE] = conf.get(CONF_NAME)
         event_info = {
             ATTR_EVENT_TYPE: event.event_type,
             ATTR_EVENT_DATA: event.data
@@ -111,10 +107,6 @@ def async_setup(hass, config):
         event_type = event.get(ATTR_EVENT_TYPE)
         event_data = event.get(ATTR_EVENT_DATA)
 
-        # Ignore if originated from this instance
-        if name and event_data.get(ATTR_SOURCE, None) == name:
-            return
-
         # Special case handling for event STATE_CHANGED
         # We will try to convert state dicts back to State objects
         # Copied over from the _handle_api_post_events_event method
@@ -127,7 +119,6 @@ def async_setup(hass, config):
                     event_data[key] = state
             entity_id = event_data.get(ATTR_ENTITY_ID)
             new_state = event_data.get(ATTR_NEW_STATE, {})
-            new_state.attributes[ATTR_SOURCE] = conf.get(CONF_NAME)
 
             if new_state:
                 hass.states.async_set(
