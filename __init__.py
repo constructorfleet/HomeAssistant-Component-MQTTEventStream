@@ -43,7 +43,7 @@ CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
             {
-                vol.Required(CONF_NAME): str,
+                vol.Optional(CONF_NAME): str,
                 vol.Optional(CONF_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_IGNORE_EVENT, default=[]): cv.ensure_list,
@@ -59,7 +59,7 @@ def async_setup(hass, config):
     """Set up the MQTT eventstream component."""
     mqtt = hass.components.mqtt
     conf = config.get(DOMAIN, {})
-    name = config[CONF_NAME]
+    name = config.get(CONF_NAME)
     pub_topic = conf.get(CONF_PUBLISH_TOPIC, None)
     sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC, None)
     ignore_event = conf.get(CONF_IGNORE_EVENT, [])
@@ -112,7 +112,7 @@ def async_setup(hass, config):
         event_data = event.get(ATTR_EVENT_DATA)
 
         # Ignore if originated from this instance
-        if event_data.get(ATTR_SOURCE, None) == name:
+        if name and event_data.get(ATTR_SOURCE, None) == name:
             return
 
         # Special case handling for event STATE_CHANGED
