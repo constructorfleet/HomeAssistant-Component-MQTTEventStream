@@ -30,19 +30,25 @@ DOMAIN = "mqtteventstream"
 
 ATTR_EVENT_TYPE = "event_type"
 ATTR_EVENT_DATA = "event_data"
+ATTR_EVENT_ORIGIN = "origin"
 ATTR_NEW_STATE = "new_state"
 ATTR_OLD_STATE = "old_state"
 ATTR_SOURCE = "source"
 
+CONF_STATE_PUBLISH_TOPIC = "state_publish_topic"
 CONF_PUBLISH_TOPIC = "publish_topic"
 CONF_SUBSCRIBE_TOPIC = "subscribe_topic"
 CONF_IGNORE_EVENT = "ignore_event"
+
+EVENT_PUBLISH_STATES = "publish_states"
+EVENT_STATE = "statte"
 
 CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
             {
                 vol.Optional(CONF_PUBLISH_TOPIC): valid_publish_topic,
+                vol.Optional(CONF_STATE_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_IGNORE_EVENT, default=[]): cv.ensure_list,
             }
@@ -59,6 +65,7 @@ def async_setup(hass, config):
     conf = config.get(DOMAIN, {})
     pub_topic = conf.get(CONF_PUBLISH_TOPIC, None)
     sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC, None)
+    state_pub_topic = conf.gett(CONF_STATE_PUBLISH_TOPIC, None)
     ignore_event = conf.get(CONF_IGNORE_EVENT, [])
 
     @callback
@@ -106,6 +113,17 @@ def async_setup(hass, config):
         event = json.loads(msg.payload)
         event_type = event.get(ATTR_EVENT_TYPE)
         event_data = event.get(ATTR_EVENT_DATA)
+
+        if event_type == EVENT_PUBLISH_STATES and state_pub_topic:
+            for state in hass.states.all():
+                message = {
+                    ATTR_EVENT_TYPE: EVENT_STATE,
+                    ATTR_EVENT_DATA: state.as_dict(),
+                    ATTR_EVENT_ORIGIN: EventOrigin.local
+                }
+                mqtt.async_publish(state_pub_topic + "/" + state.entity_id,
+                                   json.dumps(message, cls=JSONEncoder), 1, True)
+            return
 
         # Special case handling for event STATE_CHANGED
         # We will try to convert state dicts back to State objects
