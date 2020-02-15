@@ -71,7 +71,7 @@ def async_setup(hass, config):
     pub_topic = conf.get(CONF_PUBLISH_TOPIC, None)
     sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC, None)
     state_sub_topic = conf.get(CONF_SUBSCRIBE_STATE_TOPIC, None)
-    state_pub_topic = conf.gett(CONF_STATE_PUBLISH_TOPIC, None)
+    state_pub_topic = conf.get(CONF_STATE_PUBLISH_TOPIC, None)
     ignore_event = conf.get(CONF_IGNORE_EVENT, [])
 
     @callback
