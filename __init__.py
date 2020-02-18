@@ -180,10 +180,10 @@ def async_setup(hass, config):
 
     # Only subscribe if you specified a topic
     if sub_topic:
-        await mqtt.async_subscribe(sub_topic, _event_receiver)
+        yield from mqtt.async_subscribe(sub_topic, _event_receiver)
 
     if rules_sub_topic:
-        await mqtt.async_subscribe(rules_sub_topic, _event_receiver)
+        yield from mqtt.async_subscribe(rules_sub_topic, _event_receiver)
 
     # Process events from a remote server that are received on a queue.
     @callback
@@ -204,6 +204,6 @@ def async_setup(hass, config):
         )
 
     if state_sub_topic:
-        await mqtt.async_subscribe(state_sub_topic, _state_receiver)
+        yield from mqtt.async_subscribe(state_sub_topic, _state_receiver)
 
     return True
