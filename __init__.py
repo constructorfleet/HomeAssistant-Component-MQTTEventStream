@@ -45,7 +45,7 @@ CONF_SUBSCRIBE_RULES_TOPIC = "subscribe_rules_topic"
 CONF_IGNORE_EVENT = "ignore_event"
 
 EVENT_PUBLISH_STATES = "publish_states"
-EVENT_STATE = "statte"
+EVENT_STATE = "state"
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -72,6 +72,7 @@ def async_setup(hass, config):
     sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC, None)
     state_sub_topic = conf.get(CONF_SUBSCRIBE_STATE_TOPIC, None)
     state_pub_topic = conf.get(CONF_STATE_PUBLISH_TOPIC, None)
+    rules_sub_topic = conf.get(CONF_SUBSCRIBE_RULES_TOPIC, None)
     ignore_event = conf.get(CONF_IGNORE_EVENT, [])
 
     @callback
@@ -180,6 +181,8 @@ def async_setup(hass, config):
     # Only subscribe if you specified a topic
     if sub_topic:
         yield from mqtt.async_subscribe(sub_topic, _event_receiver)
+
+    if
 
     # Process events from a remote server that are received on a queue.
     @callback
