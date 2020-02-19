@@ -221,7 +221,4 @@ def async_setup(hass, config):
     if state_sub_topic:
         yield from mqtt.async_subscribe(state_sub_topic, _state_receiver)
 
-    if state_pub_topic:
-        hass.add_job(_publish_states())
-
     return True
