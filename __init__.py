@@ -15,7 +15,6 @@ from homeassistant.const import (
     ATTR_ENTITY_ID,
     ATTR_SERVICE,
     ATTR_SERVICE_DATA,
-    ATTR_STATE,
     EVENT_CALL_SERVICE,
     EVENT_SERVICE_REGISTERED,
     EVENT_STATE_CHANGED,
@@ -38,7 +37,6 @@ ATTR_OLD_STATE = "old_state"
 ATTR_SOURCE = "source"
 
 CONF_PUBLISH_TOPIC = "publish_topic"
-CONF_PUBLISH_STATE_ON_INIT = "publish_state_on_init"
 CONF_STATE_PUBLISH_TOPIC = "state_publish_topic"
 CONF_SUBSCRIBE_STATE_TOPIC = "subscribe_state_topic"
 CONF_SUBSCRIBE_TOPIC = "subscribe_topic"
@@ -46,7 +44,6 @@ CONF_SUBSCRIBE_RULES_TOPIC = "subscribe_rules_topic"
 CONF_IGNORE_EVENT = "ignore_event"
 
 EVENT_PUBLISH_STATES = "publish_states"
-EVENT_STATE = "state"
 
 NOTIFICATION_ACTION_EVENT_TYPE = "notification_action"
 
@@ -56,7 +53,6 @@ CONFIG_SCHEMA = vol.Schema(
             {
                 vol.Optional(CONF_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_STATE_PUBLISH_TOPIC): valid_publish_topic,
-                vol.Optional(CONF_PUBLISH_STATE_ON_INIT): cv.boolean,
                 vol.Optional(CONF_SUBSCRIBE_RULES_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_STATE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
@@ -78,7 +74,6 @@ def async_setup(hass, config):
     state_sub_topic = conf.get(CONF_SUBSCRIBE_STATE_TOPIC, None)
     state_pub_topic = conf.get(CONF_STATE_PUBLISH_TOPIC, None)
     rules_sub_topic = conf.get(CONF_SUBSCRIBE_RULES_TOPIC, None)
-    pub_state_on_init = conf.get(CONF_PUBLISH_STATE_ON_INIT, False)
     ignore_event = conf.get(CONF_IGNORE_EVENT, [])
 
     @callback
@@ -122,15 +117,41 @@ def async_setup(hass, config):
         hass.bus.async_listen(MATCH_ALL, _event_publisher)
 
     @callback
+    def _publish_state(state):
+        message = {
+            ATTR_EVENT_TYPE: EVENT_STATE_CHANGED,
+            ATTR_EVENT_DATA: {
+                ATTR_OLD_STATE: state.as_dict(),
+                ATTR_NEW_STATE: state.as_dict()
+            },
+            ATTR_EVENT_ORIGIN: EventOrigin.local
+        }
+        mqtt.async_publish(state_pub_topic + "/" + state.entity_id,
+                           json.dumps(message, cls=JSONEncoder), 1, True)
+
+    @callback
     def _publish_states():
-        for state_item in hass.states.all():
-            message = {
-                ATTR_EVENT_TYPE: EVENT_STATE,
-                ATTR_EVENT_DATA: state_item.as_dict(),
-                ATTR_EVENT_ORIGIN: EventOrigin.local
-            }
-            mqtt.async_publish(state_pub_topic + "/" + state_item.entity_id,
-                               json.dumps(message, cls=JSONEncoder), 1, True)
+        for state in hass.states.all():
+            _publish_state(state)
+
+    @callback
+    def _handle_remote_state_change(event_data):
+        for key in (ATTR_OLD_STATE, ATTR_NEW_STATE):
+            state_item = State.from_dict(event_data.get(key))
+
+            if state_item:
+                event_data[key] = state_item
+        entity_id = event_data.get(ATTR_ENTITY_ID)
+        new_state = event_data.get(ATTR_NEW_STATE, {})
+
+        if new_state:
+            hass.states.async_set(
+                entity_id,
+                new_state.state,
+                new_state.attributes,
+                force_update=True
+            )
+            return
 
     # Process events from a remote server that are received on a queue.
     @callback
@@ -149,46 +170,33 @@ def async_setup(hass, config):
         # Copied over from the _handle_api_post_events_event method
         # of the api component.
 
-        if event_type:
-            if EVENT_STATE_CHANGED == event_type:
-                for key in (ATTR_OLD_STATE, ATTR_NEW_STATE):
-                    state_item = State.from_dict(event_data.get(key))
+        if not event_type:
+            return
 
-                    if state_item:
-                        event_data[key] = state_item
-                entity_id = event_data.get(ATTR_ENTITY_ID)
-                new_state = event_data.get(ATTR_NEW_STATE, {})
+        if EVENT_STATE_CHANGED == event_type:
+            _handle_remote_state_change(event_data)
 
-                if new_state:
-                    hass.states.async_set(
-                        entity_id,
-                        new_state.state,
-                        new_state.attributes,
-                        True
-                    )
-                    return
+        elif event_type == EVENT_CALL_SERVICE:
+            hass.loop.create_task(hass.services.async_call(
+                event_data.get(ATTR_DOMAIN),
+                event_data.get(ATTR_SERVICE),
+                event_data.get(ATTR_SERVICE_DATA, {})))
 
-            if event_type == EVENT_CALL_SERVICE:
-                hass.loop.create_task(hass.services.async_call(
-                    event_data.get(ATTR_DOMAIN),
-                    event_data.get(ATTR_SERVICE),
-                    event_data.get(ATTR_SERVICE_DATA, {})))
+        elif event_type == EVENT_SERVICE_REGISTERED:
+            domain = event_data.get(ATTR_DOMAIN)
+            service = event_data.get(ATTR_SERVICE)
+            if not hass.services.has_service(domain, service):
+                hass.services.async_register(
+                    domain,
+                    service,
+                    lambda svc: _LOGGER.info("Calling remote service %s on domain %s",
+                                             service,
+                                             domain)
+                )
 
-            elif event_type == EVENT_SERVICE_REGISTERED:
-                domain = event_data.get(ATTR_DOMAIN)
-                service = event_data.get(ATTR_SERVICE)
-                if not hass.services.has_service(domain, service):
-                    hass.services.async_register(
-                        domain,
-                        service,
-                        lambda svc: _LOGGER.info("Calling remote service %s on domain %s",
-                                                 service,
-                                                 domain)
-                    )
-
-            hass.bus.async_fire(
-                event_type, event_data=event_data, origin=EventOrigin.remote
-            )
+        hass.bus.async_fire(
+            event_type, event_data=event_data, origin=EventOrigin.remote
+        )
 
     # Only subscribe if you specified a topic
     if sub_topic:
@@ -205,20 +213,15 @@ def async_setup(hass, config):
         event_type = event.get(ATTR_EVENT_TYPE)
         event_data = event.get(ATTR_EVENT_DATA)
 
-        if event_type != EVENT_STATE:
+        if event_type != EVENT_STATE_CHANGED:
             return
 
-        hass.states.set(
-            event_data.get(ATTR_ENTITY_ID),
-            event_data.get(ATTR_STATE),
-            event_data.get(ATTR_ATTRIBUTES, {}),
-            force_update=True
-        )
+        _handle_remote_state_change(event_data)
 
     if state_sub_topic:
         yield from mqtt.async_subscribe(state_sub_topic, _state_receiver)
 
-    if state_pub_topic and pub_state_on_init:
+    if state_pub_topic:
         hass.add_job(_publish_states())
 
     return True
