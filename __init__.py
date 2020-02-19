@@ -161,6 +161,9 @@ def async_setup(hass, config):
         event_type = event.get(ATTR_EVENT_TYPE)
         event_data = event.get(ATTR_EVENT_DATA)
 
+        if not event_type:
+            return
+
         if event_type == EVENT_PUBLISH_STATES and state_pub_topic:
             hass.add_job(_publish_states())
             return
@@ -170,13 +173,11 @@ def async_setup(hass, config):
         # Copied over from the _handle_api_post_events_event method
         # of the api component.
 
-        if not event_type:
-            return
-
         if EVENT_STATE_CHANGED == event_type:
             _handle_remote_state_change(event_data)
+            return
 
-        elif event_type == EVENT_CALL_SERVICE:
+        if event_type == EVENT_CALL_SERVICE:
             hass.loop.create_task(hass.services.async_call(
                 event_data.get(ATTR_DOMAIN),
                 event_data.get(ATTR_SERVICE),
