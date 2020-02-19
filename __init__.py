@@ -48,6 +48,8 @@ CONF_IGNORE_EVENT = "ignore_event"
 EVENT_PUBLISH_STATES = "publish_states"
 EVENT_STATE = "state"
 
+NOTIFICATION_ACTION_EVENT_TYPE = "notification_action"
+
 CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
@@ -82,7 +84,8 @@ def async_setup(hass, config):
     @callback
     def _event_publisher(event):
         """Handle events by publishing them on the MQTT queue."""
-        if event.origin != EventOrigin.local:
+        if event.origin != EventOrigin.local \
+                and NOTIFICATION_ACTION_EVENT_TYPE not in event.event_type:
             return
         if event.event_type == EVENT_TIME_CHANGED:
             return
