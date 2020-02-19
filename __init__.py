@@ -28,6 +28,10 @@ _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "mqtteventstream"
 
+QOS_AT_MOST_ONCE = 0
+QOS_AT_LEAST_ONCE = 1
+QOS_EXACTLY_ONCE = 2
+
 ATTR_ATTRIBUTES = "attributes"
 ATTR_EVENT_TYPE = "event_type"
 ATTR_EVENT_DATA = "event_data"
@@ -111,7 +115,7 @@ def async_setup(hass, config):
         if event.event_type == EVENT_STATE_CHANGED:
             topic_base = state_pub_topic if state_pub_topic else pub_topic
             topic = "%s/%s" % (topic_base, event.data.get(ATTR_ENTITY_ID))
-            mqtt.async_publish(topic, msg, 1, True)
+            mqtt.async_publish(topic, msg, QOS_EXACTLY_ONCE, True)
         else:
             mqtt.async_publish(pub_topic, msg)
 
@@ -130,7 +134,7 @@ def async_setup(hass, config):
             ATTR_EVENT_ORIGIN: EventOrigin.local
         }
         mqtt.async_publish(state_pub_topic + "/" + state.entity_id,
-                           json.dumps(message, cls=JSONEncoder), 1, True)
+                           json.dumps(message, cls=JSONEncoder), QOS_EXACTLY_ONCE, True)
 
     @callback
     def _publish_states():
