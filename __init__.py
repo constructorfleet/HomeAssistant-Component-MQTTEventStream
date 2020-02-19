@@ -21,7 +21,7 @@ from homeassistant.const import (
     EVENT_TIME_CHANGED,
     MATCH_ALL,
 )
-from homeassistant.core import EventOrigin, State, callback
+from homeassistant.core import EventOrigin, State, callback, Context
 from homeassistant.helpers.json import JSONEncoder
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,6 +46,8 @@ CONF_IGNORE_EVENT = "ignore_event"
 EVENT_PUBLISH_STATES = "publish_states"
 
 NOTIFICATION_ACTION_EVENT_TYPE = "notification_action"
+
+CONTEXT_PARENT_REMOTE = "REMOTE"
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -82,11 +84,12 @@ def async_setup(hass, config):
         if event.origin != EventOrigin.local \
                 and NOTIFICATION_ACTION_EVENT_TYPE not in event.event_type:
             return
-        if event.event_type == EVENT_TIME_CHANGED:
+        if event.event_type == EVENT_TIME_CHANGED \
+                or event.event_type in ignore_event:
             return
 
-        # User-defined events to ignore
-        if event.event_type in ignore_event:
+        if event.event_type == EVENT_STATE_CHANGED and \
+                event.context.parent_id == CONTEXT_PARENT_REMOTE:
             return
 
         # Filter out the events that were triggered by publishing
@@ -135,7 +138,7 @@ def async_setup(hass, config):
             _publish_state(state)
 
     @callback
-    def _handle_remote_state_change(event_data):
+    def _handle_remote_state_change(event_data, context_parent):
         for key in (ATTR_OLD_STATE, ATTR_NEW_STATE):
             state_item = State.from_dict(event_data.get(key))
 
@@ -149,7 +152,8 @@ def async_setup(hass, config):
                 entity_id,
                 new_state.state,
                 new_state.attributes,
-                force_update=True
+                force_update=True,
+                context=Context(parent_id=context_parent)
             )
             return
 
@@ -217,7 +221,7 @@ def async_setup(hass, config):
         if event_type != EVENT_STATE_CHANGED:
             return
 
-        _handle_remote_state_change(event_data)
+        _handle_remote_state_change(event_data, CONTEXT_PARENT_REMOTE)
 
     if state_sub_topic:
         yield from mqtt.async_subscribe(state_sub_topic, _state_receiver)
