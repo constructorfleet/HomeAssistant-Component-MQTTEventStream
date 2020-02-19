@@ -56,6 +56,7 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(CONF_STATE_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_PUBLISH_STATE_ON_INIT): cv.boolean,
                 vol.Optional(CONF_SUBSCRIBE_RULES_TOPIC): valid_subscribe_topic,
+                vol.Optional(CONF_SUBSCRIBE_STATE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_IGNORE_EVENT, default=[]): cv.ensure_list,
             }
