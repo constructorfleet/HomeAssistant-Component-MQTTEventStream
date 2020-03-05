@@ -152,11 +152,10 @@ def async_setup(hass, config):
         new_state = event_data.get(ATTR_NEW_STATE, {})
 
         if new_state:
-            hass.states.async_set(
+            hass.states.set(
                 entity_id,
                 new_state.state,
                 new_state.attributes,
-                force_update=True,
                 context=Context(parent_id=context_parent)
             )
             return
@@ -181,7 +180,7 @@ def async_setup(hass, config):
         # Copied over from the _handle_api_post_events_event method
         # of the api component.
 
-        if EVENT_STATE_CHANGED == event_type:
+        if EVENT_STATE_CHANGED == event_type and not state_sub_topic:
             _handle_remote_state_change(event_data)
             return
 
