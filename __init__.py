@@ -21,7 +21,7 @@ from homeassistant.const import (
     EVENT_TIME_CHANGED,
     MATCH_ALL,
 )
-from homeassistant.core import EventOrigin, State, callback, Context
+from homeassistant.core import EventOrigin, State, callback
 from homeassistant.helpers.json import JSONEncoder
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,8 +48,6 @@ CONF_SUBSCRIBE_RULES_TOPIC = "subscribe_rules_topic"
 CONF_IGNORE_EVENT = "ignore_event"
 
 EVENT_PUBLISH_STATES = "publish_states"
-
-NOTIFICATION_ACTION_EVENT_TYPE = "notification_action"
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -83,8 +81,7 @@ def async_setup(hass, config):
     @callback
     def _event_publisher(event):
         """Handle events by publishing them on the MQTT queue."""
-        if event.origin != EventOrigin.local \
-                and NOTIFICATION_ACTION_EVENT_TYPE not in event.event_type:
+        if event.origin != EventOrigin.local:
             return
         if event.event_type == EVENT_TIME_CHANGED \
                 or event.event_type in ignore_event:
