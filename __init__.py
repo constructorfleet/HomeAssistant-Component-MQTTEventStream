@@ -152,7 +152,7 @@ def async_setup(hass, config):
         new_state = event_data.get(ATTR_NEW_STATE, {})
 
         if new_state:
-            hass.states.set(
+            hass.states.async_set(
                 entity_id,
                 new_state.state,
                 new_state.attributes,
