@@ -51,8 +51,6 @@ EVENT_PUBLISH_STATES = "publish_states"
 
 NOTIFICATION_ACTION_EVENT_TYPE = "notification_action"
 
-CONTEXT_PARENT_REMOTE = "REMOTE"
-
 CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
@@ -90,10 +88,6 @@ def async_setup(hass, config):
             return
         if event.event_type == EVENT_TIME_CHANGED \
                 or event.event_type in ignore_event:
-            return
-
-        if event.event_type == EVENT_STATE_CHANGED and \
-                event.context.parent_id == CONTEXT_PARENT_REMOTE:
             return
 
         # Filter out the events that were triggered by publishing
@@ -142,7 +136,7 @@ def async_setup(hass, config):
             _publish_state(state)
 
     @callback
-    def _handle_remote_state_change(event_data, context_parent):
+    def _handle_remote_state_change(event_data):
         for key in (ATTR_OLD_STATE, ATTR_NEW_STATE):
             state_item = State.from_dict(event_data.get(key))
 
@@ -155,8 +149,7 @@ def async_setup(hass, config):
             hass.states.async_set(
                 entity_id,
                 new_state.state,
-                new_state.attributes,
-                context=Context(parent_id=context_parent)
+                new_state.attributes
             )
             return
 
@@ -224,7 +217,7 @@ def async_setup(hass, config):
         if event_type != EVENT_STATE_CHANGED:
             return
 
-        _handle_remote_state_change(event_data, CONTEXT_PARENT_REMOTE)
+        _handle_remote_state_change(event_data)
 
     if state_sub_topic:
         yield from mqtt.async_subscribe(state_sub_topic, _state_receiver)
