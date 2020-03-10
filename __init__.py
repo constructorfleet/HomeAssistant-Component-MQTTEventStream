@@ -47,6 +47,7 @@ ATTR_INSTANCE_NAME = 'instance_name'
 CONF_PUBLISH_TOPIC = "publish_topic"
 CONF_STATE_PUBLISH_TOPIC = "state_publish_topic"
 CONF_ROUTE_PUBLISH_TOPIC = "route_publish_topic"
+CONF_ROUTE_SUBSCRIBE_TOPIC = "route_subscribe_topic"
 CONF_SUBSCRIBE_STATE_TOPIC = "subscribe_state_topic"
 CONF_SUBSCRIBE_TOPIC = "subscribe_topic"
 CONF_SUBSCRIBE_RULES_TOPIC = "subscribe_rules_topic"
@@ -62,6 +63,7 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(CONF_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_STATE_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_ROUTE_PUBLISH_TOPIC): valid_publish_topic,
+                vol.Optional(CONF_ROUTE_SUBSCRIBE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_RULES_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_STATE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
@@ -83,6 +85,7 @@ def async_setup(hass, config):
     state_sub_topic = conf.get(CONF_SUBSCRIBE_STATE_TOPIC, None)
     state_pub_topic = conf.get(CONF_STATE_PUBLISH_TOPIC, None)
     route_pub_topic = conf.get(CONF_ROUTE_PUBLISH_TOPIC, None)
+    route_sub_topic = conf.get(CONF_ROUTE_SUBSCRIBE_TOPIC, None)
     rules_sub_topic = conf.get(CONF_SUBSCRIBE_RULES_TOPIC, None)
     ignore_event = conf.get(CONF_IGNORE_EVENT, [])
 
@@ -236,5 +239,22 @@ def async_setup(hass, config):
 
     if state_sub_topic:
         yield from mqtt.async_subscribe(state_sub_topic, _state_receiver)
+
+    @callback
+    def _remote_route_receiver(msg):
+        """Receive states published by and fire them on this hass instance."""
+        event = json.loads(msg.payload)
+        event_type = event.get(ATTR_EVENT_TYPE)
+        event_data = event.get(ATTR_EVENT_DATA)
+
+        if event_type != EVENT_TYPE_ROUTE_REGISTERED:
+            return
+
+        hass.bus.async_fire(
+            event_type, event_data=event_data, origin=EventOrigin.remote
+        )
+
+    if route_sub_topic:
+        yield from mqtt.async_subscribe(route_sub_topic, _remote_route_receiver)
 
     return True
