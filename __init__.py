@@ -39,15 +39,21 @@ ATTR_EVENT_ORIGIN = "origin"
 ATTR_NEW_STATE = "new_state"
 ATTR_OLD_STATE = "old_state"
 ATTR_SOURCE = "source"
+ATTR_ROUTE = "route"
+ATTR_METHOD = 'method'
+ATTR_INSTANCE_NAME = 'instance_name'
+
 
 CONF_PUBLISH_TOPIC = "publish_topic"
 CONF_STATE_PUBLISH_TOPIC = "state_publish_topic"
+CONF_ROUTE_PUBLISH_TOPIC = "route_publish_topic"
 CONF_SUBSCRIBE_STATE_TOPIC = "subscribe_state_topic"
 CONF_SUBSCRIBE_TOPIC = "subscribe_topic"
 CONF_SUBSCRIBE_RULES_TOPIC = "subscribe_rules_topic"
 CONF_IGNORE_EVENT = "ignore_event"
 
 EVENT_PUBLISH_STATES = "publish_states"
+EVENT_TYPE_ROUTE_REGISTERED = 'route_registered'
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -55,6 +61,7 @@ CONFIG_SCHEMA = vol.Schema(
             {
                 vol.Optional(CONF_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_STATE_PUBLISH_TOPIC): valid_publish_topic,
+                vol.Optional(CONF_ROUTE_PUBLISH_TOPIC): valid_publish_topic,
                 vol.Optional(CONF_SUBSCRIBE_RULES_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_STATE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
@@ -75,6 +82,7 @@ def async_setup(hass, config):
     sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC, None)
     state_sub_topic = conf.get(CONF_SUBSCRIBE_STATE_TOPIC, None)
     state_pub_topic = conf.get(CONF_STATE_PUBLISH_TOPIC, None)
+    route_pub_topic = conf.get(CONF_ROUTE_PUBLISH_TOPIC, None)
     rules_sub_topic = conf.get(CONF_SUBSCRIBE_RULES_TOPIC, None)
     ignore_event = conf.get(CONF_IGNORE_EVENT, [])
 
@@ -103,12 +111,22 @@ def async_setup(hass, config):
         }
         msg = json.dumps(event_info, cls=JSONEncoder)
 
-        if event.event_type == EVENT_STATE_CHANGED:
-            topic_base = state_pub_topic if state_pub_topic else pub_topic
-            topic = "%s/%s" % (topic_base, event.data.get(ATTR_ENTITY_ID))
-            mqtt.async_publish(topic, msg, QOS_EXACTLY_ONCE, True)
-        else:
+        special_publish_events = {
+            EVENT_STATE_CHANGED: "%s/%s" % (
+                state_pub_topic if state_pub_topic else pub_topic,
+                event.data.get(ATTR_ENTITY_ID)),
+            EVENT_TYPE_ROUTE_REGISTERED: "%s/%s/%s/%s" % (
+                route_pub_topic if route_pub_topic else pub_topic,
+                event.data.get(ATTR_INSTANCE_NAME),
+                event.data.get(ATTR_METHOD),
+                event.data.get(ATTR_ROUTE))
+        }
+
+        topic = special_publish_events.get(event.event_type)
+        if not topic:
             mqtt.async_publish(pub_topic, msg)
+        else:
+            mqtt.async_publish(topic, msg, QOS_EXACTLY_ONCE, True)
 
     # Only listen for local events if you are going to publish them.
     if pub_topic:
