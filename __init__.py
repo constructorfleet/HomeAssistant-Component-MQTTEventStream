@@ -73,6 +73,8 @@ CONFIG_SCHEMA = vol.Schema(
 )
 
 
+# pylint: disable=R0914
+# pylint: disable=R0915
 @asyncio.coroutine
 def async_setup(hass, config):
     """Set up the MQTT eventstream component."""
