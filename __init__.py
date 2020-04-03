@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import re
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -51,6 +52,7 @@ CONF_SUBSCRIBE_STATE_TOPIC = "subscribe_state_topic"
 CONF_SUBSCRIBE_TOPIC = "subscribe_topic"
 CONF_SUBSCRIBE_RULES_TOPIC = "subscribe_rules_topic"
 CONF_IGNORE_EVENT = "ignore_event"
+CONF_IGNORE_EVENT_DATA_PATTERNS = "ignore_event_data_patterns"
 
 EVENT_PUBLISH_STATES = "publish_states"
 EVENT_TYPE_ROUTE_REGISTERED = 'route_registered'
@@ -65,7 +67,13 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Optional(CONF_SUBSCRIBE_RULES_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_STATE_TOPIC): valid_subscribe_topic,
                 vol.Optional(CONF_SUBSCRIBE_TOPIC): valid_subscribe_topic,
-                vol.Optional(CONF_IGNORE_EVENT, default=[]): cv.ensure_list,
+                vol.Optional(CONF_IGNORE_EVENT, default=[]): vol.All(
+                    cv.ensure_list,
+                    [str]),
+                vol.Optional(CONF_IGNORE_EVENT_DATA_PATTERNS, default=[]): vol.All(
+                    cv.ensure_list,
+                    [vol.All(vol.Coerce(str), re.compile)]
+                )
             }
         )
     },
@@ -87,6 +95,14 @@ def async_setup(hass, config):
     route_pub_topic = conf.get(CONF_ROUTE_PUBLISH_TOPIC, None)
     rules_sub_topic = conf.get(CONF_SUBSCRIBE_RULES_TOPIC, None)
     ignore_event = conf.get(CONF_IGNORE_EVENT, [])
+    ignore_event_data_patterns = conf.get(CONF_IGNORE_EVENT_DATA_PATTERNS, [])
+
+    def _should_ignore(event_data):
+        for pattern in ignore_event_data_patterns:
+            if pattern.match(event_data):
+                return True
+
+        return False
 
     @callback
     def _event_publisher(event):
@@ -94,7 +110,8 @@ def async_setup(hass, config):
         if event.origin != EventOrigin.local:
             return
         if event.event_type == EVENT_TIME_CHANGED \
-                or event.event_type in ignore_event:
+                or event.event_type in ignore_event \
+                or _should_ignore(event.data):
             return
 
         # Filter out the events that were triggered by publishing
