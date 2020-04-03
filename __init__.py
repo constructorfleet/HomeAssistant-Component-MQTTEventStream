@@ -72,7 +72,7 @@ CONFIG_SCHEMA = vol.Schema(
                     [str]),
                 vol.Optional(CONF_IGNORE_EVENT_DATA_PATTERNS, default=[]): vol.All(
                     cv.ensure_list,
-                    [vol.All(vol.Coerce(str), re.compile)]
+                    [str]
                 )
             }
         )
@@ -98,10 +98,13 @@ def async_setup(hass, config):
     ignore_event_data_patterns = conf.get(CONF_IGNORE_EVENT_DATA_PATTERNS, [])
 
     def _should_ignore(event_data):
-        for pattern in ignore_event_data_patterns:
-            if pattern.match(event_data):
-                return True
-
+        try:
+            json_data = json.dumps(event_data)
+            for pattern in ignore_event_data_patterns:
+                if re.match(pattern, json_data):
+                    return True
+        except Exception as err:
+            _LOGGER.debug(str(err))
         return False
 
     def _is_known_entity(entity_id):
