@@ -104,6 +104,9 @@ def async_setup(hass, config):
 
         return False
 
+    def _is_known_entity(entity_id):
+        return hass.states.get(entity_id) is not None
+
     @callback
     def _event_publisher(event):
         """Handle events by publishing them on the MQTT queue."""
@@ -211,7 +214,15 @@ def async_setup(hass, config):
             _handle_remote_state_change(event_data)
             return
 
-        if event_type == EVENT_CALL_SERVICE:
+        if event_type == EVENT_CALL_SERVICE and hass.services.has_service(
+                event_data.get(ATTR_DOMAIN), event_data.get(ATTR_SERVICE)):
+            if ATTR_ENTITY_ID in event_data.get(ATTR_EVENT_DATA, {}):
+                original_list = event_data[ATTR_EVENT_DATA][ATTR_ENTITY_ID]
+                if isinstance(original_list, str):
+                    original_list = []
+                event_data[ATTR_EVENT_DATA][ATTR_ENTITY_ID] = \
+                    list(filter(_is_known_entity, original_list))
+
             hass.loop.create_task(hass.services.async_call(
                 event_data.get(ATTR_DOMAIN),
                 event_data.get(ATTR_SERVICE),
