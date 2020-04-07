@@ -193,6 +193,17 @@ def async_setup(hass, config):
             )
             return
 
+    def _get_service_publisher(domain, service):
+        def _publish_service(service_data):
+            _publish_service_call(domain, service, service_data)
+        return _publish_service
+
+    def _publish_service_call(domain, service, service_data=None):
+        hass.loop.create_task(hass.services.async_call(
+            domain,
+            service,
+            service_data or {}))
+
     # Process events from a remote server that are received on a queue.
     @callback
     def _event_receiver(msg):
@@ -213,23 +224,22 @@ def async_setup(hass, config):
         # Copied over from the _handle_api_post_events_event method
         # of the api component.
 
-        if EVENT_STATE_CHANGED == event_type and not state_sub_topic:
-            _handle_remote_state_change(event_data)
+        if EVENT_STATE_CHANGED == event_type:
             return
 
-        if event_type == EVENT_CALL_SERVICE and hass.services.has_service(
-                event_data.get(ATTR_DOMAIN), event_data.get(ATTR_SERVICE)):
-            if ATTR_ENTITY_ID in event_data.get(ATTR_EVENT_DATA, {}):
-                original_list = event_data[ATTR_EVENT_DATA][ATTR_ENTITY_ID]
-                if isinstance(original_list, str):
-                    original_list = []
-                event_data[ATTR_EVENT_DATA][ATTR_ENTITY_ID] = \
-                    list(filter(_is_known_entity, original_list))
+        if event_type == EVENT_CALL_SERVICE:
+            if hass.services.has_service(event_data.get(ATTR_DOMAIN), event_data.get(ATTR_SERVICE)):
+                if ATTR_ENTITY_ID in event_data.get(ATTR_EVENT_DATA, {}):
+                    original_list = event_data[ATTR_EVENT_DATA][ATTR_ENTITY_ID]
+                    if isinstance(original_list, str):
+                        original_list = []
+                    event_data[ATTR_EVENT_DATA][ATTR_ENTITY_ID] = \
+                        list(filter(_is_known_entity, original_list))
 
-            hass.loop.create_task(hass.services.async_call(
-                event_data.get(ATTR_DOMAIN),
-                event_data.get(ATTR_SERVICE),
-                event_data.get(ATTR_SERVICE_DATA, {})))
+                _publish_service_call(
+                    event_data.get(ATTR_DOMAIN),
+                    event_data.get(ATTR_SERVICE),
+                    event_data.get(ATTR_SERVICE_DATA, {}))
 
         elif event_type == EVENT_SERVICE_REGISTERED:
             domain = event_data.get(ATTR_DOMAIN)
@@ -238,14 +248,12 @@ def async_setup(hass, config):
                 hass.services.async_register(
                     domain,
                     service,
-                    lambda svc: _LOGGER.info("Calling remote service %s on domain %s",
-                                             service,
-                                             domain)
+                    _get_service_publisher(domain, service)
                 )
-
-        hass.bus.async_fire(
-            event_type, event_data=event_data, origin=EventOrigin.remote
-        )
+        else:
+            hass.bus.async_fire(
+                event_type, event_data=event_data, origin=EventOrigin.remote
+            )
 
     # Only subscribe if you specified a topic
     if sub_topic:
