@@ -228,19 +228,17 @@ def async_setup(hass, config):
             return
 
         if event_type == EVENT_CALL_SERVICE:
-            if hass.services.has_service(event_data.get(ATTR_DOMAIN), event_data.get(ATTR_SERVICE)):
-                if ATTR_ENTITY_ID in event_data.get(ATTR_EVENT_DATA, {}):
-                    original_list = event_data[ATTR_EVENT_DATA][ATTR_ENTITY_ID]
-                    if isinstance(original_list, str):
-                        original_list = []
-                    event_data[ATTR_EVENT_DATA][ATTR_ENTITY_ID] = \
-                        list(filter(_is_known_entity, original_list))
-
-                _publish_service_call(
+            if not hass.services.has_service(
                     event_data.get(ATTR_DOMAIN),
-                    event_data.get(ATTR_SERVICE),
-                    event_data.get(ATTR_SERVICE_DATA, {}))
+                    event_data.get(ATTR_SERVICE)):
+                return
 
+            original_list = event_data.get(ATTR_SERVICE_DATA, {}).get(ATTR_ENTITY_ID, None)
+            if original_list is not None:
+                if isinstance(original_list, str):
+                    original_list = [original_list]
+                event_data[ATTR_SERVICE_DATA][ATTR_ENTITY_ID] = \
+                    list(filter(_is_known_entity, original_list))
         elif event_type == EVENT_SERVICE_REGISTERED:
             domain = event_data.get(ATTR_DOMAIN)
             service = event_data.get(ATTR_SERVICE)
@@ -250,6 +248,7 @@ def async_setup(hass, config):
                     service,
                     _get_service_publisher(domain, service)
                 )
+                return
         else:
             hass.bus.async_fire(
                 event_type, event_data=event_data, origin=EventOrigin.remote
