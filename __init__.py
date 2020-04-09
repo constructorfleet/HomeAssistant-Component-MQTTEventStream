@@ -227,18 +227,25 @@ def async_setup(hass, config):
         if EVENT_STATE_CHANGED == event_type:
             return
 
+        _LOGGER.warning('Received event {} {}'.format(event_type, str(event_data)))
+
         if event_type == EVENT_CALL_SERVICE:
+            _LOGGER.warning('Got call service')
             if not hass.services.has_service(
                     event_data.get(ATTR_DOMAIN),
                     event_data.get(ATTR_SERVICE)):
+                _LOGGER.warning('Ignoring {} {}'.format(event_data.get(ATTR_DOMAIN),
+                                                        event_data.get(ATTR_SERVICE)))
                 return
 
             original_list = event_data.get(ATTR_SERVICE_DATA, {}).get(ATTR_ENTITY_ID, None)
+            _LOGGER.warning('Original EntityIDS'.format(str(original_list)))
             if original_list is not None:
                 if isinstance(original_list, str):
                     original_list = [original_list]
                 event_data[ATTR_SERVICE_DATA][ATTR_ENTITY_ID] = \
                     list(filter(_is_known_entity, original_list))
+            _LOGGER.warning('New Event Data: {}'.format(str(event_data)))
         elif event_type == EVENT_SERVICE_REGISTERED:
             domain = event_data.get(ATTR_DOMAIN)
             service = event_data.get(ATTR_SERVICE)
