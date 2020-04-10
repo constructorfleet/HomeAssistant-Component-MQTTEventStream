@@ -109,7 +109,7 @@ def async_setup(hass, config):
         return False
 
     def _is_known_entity(entity_id):
-        return hass.states.get(entity_id) is not None
+        return True  # hass.states.get(entity_id) is not None
 
     @callback
     def _event_publisher(event):
