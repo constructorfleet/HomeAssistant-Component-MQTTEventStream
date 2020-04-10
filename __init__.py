@@ -45,7 +45,6 @@ ATTR_ROUTE = "route"
 ATTR_METHOD = 'method'
 ATTR_INSTANCE_NAME = 'instance_name'
 
-
 CONF_PUBLISH_TOPIC = "publish_topic"
 CONF_STATE_PUBLISH_TOPIC = "state_publish_topic"
 CONF_ROUTE_PUBLISH_TOPIC = "route_publish_topic"
@@ -197,6 +196,7 @@ def async_setup(hass, config):
     def _get_service_publisher(domain, service):
         def _publish_service(service_data):
             _publish_service_call(domain, service, service_data)
+
         return _publish_service
 
     def _publish_service_call(domain, service, service_data=None):
@@ -229,8 +229,8 @@ def async_setup(hass, config):
             return
 
         _LOGGER.debug('Received event %s %s',
-                        event_type,
-                        str(event_data))
+                      event_type,
+                      str(event_data))
 
         if event_type == EVENT_CALL_SERVICE:
             _LOGGER.debug('Got call service')
@@ -238,14 +238,14 @@ def async_setup(hass, config):
                     event_data.get(ATTR_DOMAIN),
                     event_data.get(ATTR_SERVICE)):
                 _LOGGER.debug('Ignoring %s %s',
-                                event_data.get(ATTR_DOMAIN),
-                                event_data.get(ATTR_SERVICE))
+                              event_data.get(ATTR_DOMAIN),
+                              event_data.get(ATTR_SERVICE))
                 return
             service_data = copy.deepcopy(event_data.get(ATTR_SERVICE_DATA, {}))
             original_entities = event_data.get(ATTR_SERVICE_DATA, {}).get(ATTR_ENTITY_ID, [])
             filtered_entities = []
             _LOGGER.debug('Original entity_id: %s',
-                            str(original_entities))
+                          str(original_entities))
             if isinstance(original_entities, str):
                 filtered_entities.append(original_entities)
             else:
@@ -253,7 +253,7 @@ def async_setup(hass, config):
                                      in original_entities
                                      if _is_known_entity(entity_id)]
             _LOGGER.debug('Filtered entity_id: %s',
-                            str(filtered_entities))
+                          str(filtered_entities))
             if ATTR_ENTITY_ID in service_data:
                 service_data[ATTR_ENTITY_ID] = filtered_entities
 
