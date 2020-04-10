@@ -1,5 +1,6 @@
 """Connect two Home Assistant instances via MQTT."""
 import asyncio
+import copy
 import json
 import logging
 import re
@@ -227,34 +228,44 @@ def async_setup(hass, config):
         if EVENT_STATE_CHANGED == event_type:
             return
 
-        _LOGGER.warning('Received event {} {}'.format(event_type, str(event_data)))
+        _LOGGER.warning('Received event %s %s',
+                        event_type,
+                        str(event_data))
 
         if event_type == EVENT_CALL_SERVICE:
             _LOGGER.warning('Got call service')
             if not hass.services.has_service(
                     event_data.get(ATTR_DOMAIN),
                     event_data.get(ATTR_SERVICE)):
-                _LOGGER.warning('Ignoring {} {}'.format(event_data.get(ATTR_DOMAIN),
-                                                        event_data.get(ATTR_SERVICE)))
+                _LOGGER.warning('Ignoring %s %s',
+                                event_data.get(ATTR_DOMAIN),
+                                event_data.get(ATTR_SERVICE))
                 return
-            # {'domain': 'light',
-            #  'service': 'turn_on',
-            #  'service_data':
-            #      {'brightness_pct': 100,
-            #       'entity_id': 'light.garage_lower_2',
-            #       'rgb_color': [181, 115, 220]}}
-            # original_list = event_data.get(ATTR_SERVICE_DATA, {}).get(ATTR_ENTITY_ID, None)
-            # _LOGGER.warning('Original EntityIDS'.format(str(original_list)))
-            # if original_list is not None:
-            #     if isinstance(original_list, str):
-            #         original_list = [original_list]
-            #     event_data[ATTR_SERVICE_DATA][ATTR_ENTITY_ID] = \
-            #         list(filter(_is_known_entity, original_list))
-            # _LOGGER.warning('New Event Data: {}'.format(str(event_data)))
-        elif event_type == EVENT_SERVICE_REGISTERED:
+            service_data = copy.deepcopy(event_data.get(ATTR_SERVICE_DATA, {}))
+            original_entities = event_data.get(ATTR_SERVICE_DATA, {}).get(ATTR_ENTITY_ID, [])
+            filtered_entities = []
+            _LOGGER.warning('Original entity_id: %s',
+                            str(original_entities))
+            if isinstance(original_entities, str):
+                filtered_entities.append(original_entities)
+            else:
+                filtered_entities = [entity_id for entity_id
+                                     in original_entities
+                                     if _is_known_entity(entity_id)]
+            _LOGGER.warning('Filtered entity_id: %s',
+                            str(filtered_entities))
+            if ATTR_ENTITY_ID in service_data:
+                service_data[ATTR_ENTITY_ID] = filtered_entities
+
+            hass.loop.create_task(hass.services.async_call(
+                event_data.get(ATTR_DOMAIN),
+                event_data.get(ATTR_SERVICE),
+                service_data))
+            return
+        if event_type == EVENT_SERVICE_REGISTERED:
             domain = event_data.get(ATTR_DOMAIN)
             service = event_data.get(ATTR_SERVICE)
-            if not hass.services.has_service(domain, service):
+            if domain in hass.data and not hass.services.has_service(domain, service):
                 hass.services.async_register(
                     domain,
                     service,
