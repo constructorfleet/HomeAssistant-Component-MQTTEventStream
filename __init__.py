@@ -228,23 +228,23 @@ def async_setup(hass, config):
         if EVENT_STATE_CHANGED == event_type:
             return
 
-        _LOGGER.warning('Received event %s %s',
+        _LOGGER.debug('Received event %s %s',
                         event_type,
                         str(event_data))
 
         if event_type == EVENT_CALL_SERVICE:
-            _LOGGER.warning('Got call service')
+            _LOGGER.debug('Got call service')
             if not hass.services.has_service(
                     event_data.get(ATTR_DOMAIN),
                     event_data.get(ATTR_SERVICE)):
-                _LOGGER.warning('Ignoring %s %s',
+                _LOGGER.debug('Ignoring %s %s',
                                 event_data.get(ATTR_DOMAIN),
                                 event_data.get(ATTR_SERVICE))
                 return
             service_data = copy.deepcopy(event_data.get(ATTR_SERVICE_DATA, {}))
             original_entities = event_data.get(ATTR_SERVICE_DATA, {}).get(ATTR_ENTITY_ID, [])
             filtered_entities = []
-            _LOGGER.warning('Original entity_id: %s',
+            _LOGGER.debug('Original entity_id: %s',
                             str(original_entities))
             if isinstance(original_entities, str):
                 filtered_entities.append(original_entities)
@@ -252,7 +252,7 @@ def async_setup(hass, config):
                 filtered_entities = [entity_id for entity_id
                                      in original_entities
                                      if _is_known_entity(entity_id)]
-            _LOGGER.warning('Filtered entity_id: %s',
+            _LOGGER.debug('Filtered entity_id: %s',
                             str(filtered_entities))
             if ATTR_ENTITY_ID in service_data:
                 service_data[ATTR_ENTITY_ID] = filtered_entities
