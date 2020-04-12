@@ -117,7 +117,7 @@ def _state_to_event(new_state, old_state=None):
 # pylint: disable=R0914
 # pylint: disable=R0915
 async def async_setup(hass, config):
-    """Set up the MQTT eventstream component."""
+    """Set up the MQTT Event Stream component."""
     mqtt = hass.components.mqtt
     conf = config.get(DOMAIN, {})
 
@@ -129,13 +129,16 @@ async def async_setup(hass, config):
 
 
 class MqttEventStream:
+    """Class that listens for and sends out events to a message queue broker."""
 
     def __init__(self, hass, mqtt, config):
+        """Create an MQTT Event Stream."""
         self._hass = hass
         self._mqtt = mqtt
         self._config = config
 
     async def initialize_if_connected(self):
+        """Set up subscription and publish topics if MQTT is connected."""
         if not self._mqtt.connected:
             _LOGGER.warning('MQTT is not connected, will try again shortly.')
             return False
@@ -178,37 +181,46 @@ class MqttEventStream:
 
     @property
     def event_publish_topic(self):
+        """NQTT topic for which events on the bus are also publisehed to."""
         return self._config.get(CONF_PUBLISH_TOPIC, None)
 
     @property
     def event_subscribe_topic(self):
+        """Main MQTT topic that contains events that may be pertinent to this instance."""
         return self._config.get(CONF_SUBSCRIBE_TOPIC, None)
 
     @property
     def state_subscribe_topic(self):
+        """MQTT topic to listen for remote state changes."""
         return self._config.get(CONF_SUBSCRIBE_STATE_TOPIC, None)
 
     @property
     def state_publish_topic(self):
+        """Get the base MQTT topic where this entity's states are published to"""
         return self._config.get(CONF_STATE_PUBLISH_TOPIC, None)
 
     @property
     def route_publish_topic(self):
+        """Get the MQTT topic where API and HTTP Views are published to."""
         return self._config.get(CONF_ROUTE_PUBLISH_TOPIC, None)
 
     @property
     def rules_engine_subscribe_topic(self):
+        """Get the MQTT topic where the rules engine events are published to."""
         return self._config.get(CONF_SUBSCRIBE_RULES_TOPIC, None)
 
     @property
     def events_to_ignore(self):
+        """List of event types to ignore."""
         return self._config.get(CONF_IGNORE_EVENT, [])
 
     @property
     def patterns_to_ignore(self):
+        """List of event data patterns to ignore."""
         return self._config.get(CONF_IGNORE_EVENT_DATA_PATTERNS, [])
 
     async def receive_state_change(self, msg):
+        """Handle entity state change on a remote source."""
         try:
             event = _mqtt_payload_to_event(msg)
         except Exception as err:
@@ -237,12 +249,14 @@ class MqttEventStream:
         )
 
     async def publish_all_states(self,):
+        """Publish all states to MQTT broker."""
         await asyncio.gather(
             *[self._publish_state(_state_to_event(state))
               for state
               in self._hass.states.all()])
 
     async def receive_remote_event(self, msg):
+        """Handle an event received from a remote source."""
         try:
             event = _mqtt_payload_to_event(msg)
         except Exception as err:
