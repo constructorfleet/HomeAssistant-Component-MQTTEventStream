@@ -13,6 +13,9 @@ from homeassistant.components.mqtt import (
     valid_publish_topic,
     valid_subscribe_topic,
 )
+from homeassistant.components.frontend import EVENT_PANELS_UPDATED
+from homeassistant.components.lovelace import EVENT_LOVELACE_UPDATED
+from homeassistant.components.system_log import EVENT_SYSTEM_LOG
 from homeassistant.const import (
     ATTR_DOMAIN,
     ATTR_ENTITY_ID,
@@ -20,12 +23,25 @@ from homeassistant.const import (
     ATTR_SERVICE_DATA,
     EVENT_CALL_SERVICE,
     EVENT_SERVICE_REGISTERED,
+    EVENT_PLATFORM_DISCOVERED,
+    EVENT_COMPONENT_LOADED,
     EVENT_STATE_CHANGED,
     EVENT_TIME_CHANGED,
+    EVENT_LOGBOOK_ENTRY,
+    EVENT_CORE_CONFIG_UPDATE,
+    EVENT_HOMEASSISTANT_CLOSE,
+    EVENT_HOMEASSISTANT_START,
+    EVENT_AUTOMATION_TRIGGERED,
+    EVENT_SCRIPT_STARTED,
+    EVENT_HOMEASSISTANT_STOP,
+    EVENT_THEMES_UPDATED,
+    EVENT_SERVICE_REMOVED,
+    EVENT_TIMER_OUT_OF_SYNC,
     MATCH_ALL,
 )
 from homeassistant.core import EventOrigin, Event
 from homeassistant.helpers.json import JSONEncoder
+from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +73,7 @@ CONF_IGNORE_EVENT_DATA_PATTERNS = "ignore_event_data_patterns"
 
 EVENT_PUBLISH_STATES = "publish_states"
 EVENT_TYPE_ROUTE_REGISTERED = 'route_registered'
+EVENT_SERVICE_EXECUTED = 'service_executed'
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -81,9 +98,25 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
-DEFAULT_IGNORED_EVENTS = [
-    'time_changed'
-]
+ALWAYS_IGNORED_EVENTS = [
+    EVENT_PLATFORM_DISCOVERED,
+    EVENT_COMPONENT_LOADED,
+    EVENT_TIME_CHANGED,
+    EVENT_LOGBOOK_ENTRY,
+    EVENT_CORE_CONFIG_UPDATE,
+    EVENT_HOMEASSISTANT_CLOSE,
+    EVENT_HOMEASSISTANT_START,
+    EVENT_AUTOMATION_TRIGGERED,
+    EVENT_SCRIPT_STARTED,
+    EVENT_HOMEASSISTANT_STOP,
+    EVENT_THEMES_UPDATED,
+    EVENT_SERVICE_REMOVED,
+    EVENT_TIMER_OUT_OF_SYNC,
+    EVENT_SYSTEM_LOG,
+    EVENT_PANELS_UPDATED,
+    EVENT_LOVELACE_UPDATED,
+    EVENT_ENTITY_REGISTRY_UPDATED,
+]x
 
 
 def _mqtt_payload_to_event(msg):
