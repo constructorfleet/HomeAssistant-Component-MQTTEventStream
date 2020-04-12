@@ -116,7 +116,8 @@ ALWAYS_IGNORED_EVENTS = [
     EVENT_PANELS_UPDATED,
     EVENT_LOVELACE_UPDATED,
     EVENT_ENTITY_REGISTRY_UPDATED,
-]x
+    EVENT_ENTITY_REGISTRY_UPDATED
+]
 
 
 def _mqtt_payload_to_event(msg):
@@ -245,7 +246,9 @@ class MqttEventStream:
     @property
     def events_to_ignore(self):
         """List of event types to ignore."""
-        return self._config.get(CONF_IGNORE_EVENT, [])
+        return ALWAYS_IGNORED_EVENTS.copy().extend(
+            self._config.get(CONF_IGNORE_EVENT,
+                             []))
 
     @property
     def patterns_to_ignore(self):
