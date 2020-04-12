@@ -242,9 +242,6 @@ class MqttEventStream:
               for state
               in self._hass.states.all()])
 
-    async def receive_service_call(self, msg):
-        pass
-
     async def receive_remote_event(self, msg):
         try:
             event = _mqtt_payload_to_event(msg)
