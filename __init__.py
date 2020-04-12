@@ -8,7 +8,8 @@ import re
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.components.mqtt import (
-    ATTR_TOPIC,
+    DOMAIN as MQTT_DOMAIN,
+    SERVICE_PUBLISH as MQTT_SERVICE_PUBLISH,
     valid_publish_topic,
     valid_subscribe_topic,
 )
@@ -23,7 +24,7 @@ from homeassistant.const import (
     EVENT_TIME_CHANGED,
     MATCH_ALL,
 )
-from homeassistant.core import EventOrigin, State, callback
+from homeassistant.core import EventOrigin, Event
 from homeassistant.helpers.json import JSONEncoder
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,144 +81,181 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
+DEFAULT_IGNORED_EVENTS = [
+    'time_changed'
+]
+
+
+def _mqtt_payload_to_event(msg):
+    return json.loads(msg.payload)
+
+
+def _event_to_dict(event):
+    return {
+        ATTR_EVENT_TYPE: event.event_type,
+        ATTR_EVENT_DATA: event.data
+    }
+
+
+def _event_to_mqtt_payload(event):
+    return json.dumps(event, cls=JSONEncoder)
+
+
+def _state_to_event(new_state, old_state=None):
+    if new_state is None:
+        return None
+    return Event(
+        event_type=EVENT_STATE_CHANGED,
+        data={
+            ATTR_ENTITY_ID: new_state.entity_id,
+            ATTR_OLD_STATE: old_state.as_dict() if old_state is not None else None,
+            ATTR_NEW_STATE: new_state.as_dict()
+        }
+    )
+
 
 # pylint: disable=R0914
 # pylint: disable=R0915
-@asyncio.coroutine
-def async_setup(hass, config):
+async def async_setup(hass, config):
     """Set up the MQTT eventstream component."""
     mqtt = hass.components.mqtt
     conf = config.get(DOMAIN, {})
-    pub_topic = conf.get(CONF_PUBLISH_TOPIC, None)
-    sub_topic = conf.get(CONF_SUBSCRIBE_TOPIC, None)
-    state_sub_topic = conf.get(CONF_SUBSCRIBE_STATE_TOPIC, None)
-    state_pub_topic = conf.get(CONF_STATE_PUBLISH_TOPIC, None)
-    route_pub_topic = conf.get(CONF_ROUTE_PUBLISH_TOPIC, None)
-    rules_sub_topic = conf.get(CONF_SUBSCRIBE_RULES_TOPIC, None)
-    ignore_event = conf.get(CONF_IGNORE_EVENT, [])
-    ignore_event_data_patterns = conf.get(CONF_IGNORE_EVENT_DATA_PATTERNS, [])
 
-    def _should_ignore(event_data):
+    if DOMAIN not in hass.data:
+        event_stream = MqttEventStream(hass, mqtt, conf)
+        hass.data[DOMAIN] = event_stream
+
+    return await hass.data[DOMAIN].initialize_if_connected()
+
+
+class MqttEventStream:
+
+    def __init__(self, hass, mqtt, config):
+        self._hass = hass
+        self._mqtt = mqtt
+        self._config = config
+
+    async def initialize_if_connected(self):
+        if not self._mqtt.connected:
+            _LOGGER.warning('MQTT is not connected, will try again shortly.')
+            return False
+
+        if self.event_publish_topic:
+            self._hass.bus.async_listen(
+                MATCH_ALL,
+                self.publish_event)
+
+        # Only subscribe if you specified a topic
+        if self.event_subscribe_topic:
+            await self._mqtt.async_subscribe(
+                self.state_subscribe_topic,
+                self.receive_remote_event)
+
+        if self.rules_engine_subscribe_topic:
+            await self._mqtt.async_subscribe(
+                self.rules_engine_subscribe_topic,
+                self.receive_remote_event)
+
+        if self.state_subscribe_topic:
+            await self._mqtt.async_subscribe(
+                self.state_subscribe_topic,
+                self.receive_state_change)
+
+        return True
+
+    def _should_ignore(self, event_data):
         try:
             json_data = json.dumps(event_data)
-            for pattern in ignore_event_data_patterns:
+            for pattern in self.patterns_to_ignore:
                 if re.match(pattern, json_data):
                     return True
         except Exception as err:
             _LOGGER.debug(str(err))
         return False
 
-    def _is_known_entity(entity_id):
-        return True  # hass.states.get(entity_id) is not None
+    def _is_known_entity(self, entity_id):
+        return self._hass.states.get(entity_id) is not None
 
-    @callback
-    def _event_publisher(event):
-        """Handle events by publishing them on the MQTT queue."""
-        if event.origin != EventOrigin.local:
-            return
-        if event.event_type == EVENT_TIME_CHANGED \
-                or event.event_type in ignore_event \
-                or _should_ignore(event.data):
-            return
+    @property
+    def event_publish_topic(self):
+        return self._config.get(CONF_PUBLISH_TOPIC, None)
 
-        # Filter out the events that were triggered by publishing
-        # to the MQTT topic, or you will end up in an infinite loop.
-        if event.event_type == EVENT_CALL_SERVICE:
-            if (
-                    event.data.get(ATTR_DOMAIN) == mqtt.DOMAIN
-                    and event.data.get(ATTR_SERVICE) == mqtt.SERVICE_PUBLISH
-                    and event.data[ATTR_SERVICE_DATA].get(ATTR_TOPIC) == pub_topic
-            ):
-                return
+    @property
+    def event_subscribe_topic(self):
+        return self._config.get(CONF_SUBSCRIBE_TOPIC, None)
 
-        event_info = {
-            ATTR_EVENT_TYPE: event.event_type,
-            ATTR_EVENT_DATA: event.data
-        }
-        msg = json.dumps(event_info, cls=JSONEncoder)
+    @property
+    def state_subscribe_topic(self):
+        return self._config.get(CONF_SUBSCRIBE_STATE_TOPIC, None)
 
-        special_publish_events = {
-            EVENT_STATE_CHANGED: "%s/%s" % (
-                state_pub_topic if state_pub_topic else pub_topic,
-                event.data.get(ATTR_ENTITY_ID)),
-            EVENT_TYPE_ROUTE_REGISTERED: "%s/%s/%s/%s" % (
-                route_pub_topic if route_pub_topic else pub_topic,
-                event.data.get(ATTR_INSTANCE_NAME),
-                event.data.get(ATTR_METHOD),
-                event.data.get(ATTR_ROUTE))
-        }
+    @property
+    def state_publish_topic(self):
+        return self._config.get(CONF_STATE_PUBLISH_TOPIC, None)
 
-        topic = special_publish_events.get(event.event_type)
-        if not topic:
-            mqtt.async_publish(pub_topic, msg)
-        else:
-            mqtt.async_publish(topic, msg, QOS_EXACTLY_ONCE, True)
+    @property
+    def route_publish_topic(self):
+        return self._config.get(CONF_ROUTE_PUBLISH_TOPIC, None)
 
-    # Only listen for local events if you are going to publish them.
-    if pub_topic:
-        hass.bus.async_listen(MATCH_ALL, _event_publisher)
+    @property
+    def rules_engine_subscribe_topic(self):
+        return self._config.get(CONF_SUBSCRIBE_RULES_TOPIC, None)
 
-    @callback
-    def _publish_state(state):
-        message = {
-            ATTR_EVENT_TYPE: EVENT_STATE_CHANGED,
-            ATTR_EVENT_DATA: {
-                ATTR_OLD_STATE: state.as_dict(),
-                ATTR_NEW_STATE: state.as_dict()
-            },
-            ATTR_EVENT_ORIGIN: EventOrigin.local
-        }
-        mqtt.async_publish(state_pub_topic + "/" + state.entity_id,
-                           json.dumps(message, cls=JSONEncoder), QOS_EXACTLY_ONCE, True)
+    @property
+    def events_to_ignore(self):
+        return self._config.get(CONF_IGNORE_EVENT, [])
 
-    @callback
-    def _publish_states():
-        for state in hass.states.all():
-            _publish_state(state)
+    @property
+    def patterns_to_ignore(self):
+        return self._config.get(CONF_IGNORE_EVENT_DATA_PATTERNS, [])
 
-    @callback
-    def _handle_remote_state_change(event_data):
-        for key in (ATTR_OLD_STATE, ATTR_NEW_STATE):
-            state_item = State.from_dict(event_data.get(key))
-
-            if state_item:
-                event_data[key] = state_item
-        entity_id = event_data.get(ATTR_ENTITY_ID)
-        new_state = event_data.get(ATTR_NEW_STATE, {})
-
-        if new_state:
-            hass.states.async_set(
-                entity_id,
-                new_state.state,
-                new_state.attributes
-            )
+    async def receive_state_change(self, msg):
+        try:
+            event = _mqtt_payload_to_event(msg)
+        except Exception as err:
+            _LOGGER.error(str(err))
             return
 
-    def _get_service_publisher(domain, service):
-        def _publish_service(service_data):
-            _publish_service_call(domain, service, service_data)
+        new_state = event.data.get(ATTR_NEW_STATE, None)
+        entity_id = event.data.get(
+            ATTR_ENTITY_ID,
+            event.data.get(ATTR_NEW_STATE, {}).get(ATTR_ENTITY_ID))
 
-        return _publish_service
-
-    def _publish_service_call(domain, service, service_data=None):
-        hass.loop.create_task(hass.services.async_call(
-            domain,
-            service,
-            service_data or {}))
-
-    # Process events from a remote server that are received on a queue.
-    @callback
-    def _event_receiver(msg):
-        """Receive events published by and fire them on this hass instance."""
-        event = json.loads(msg.payload)
-        event_type = event.get(ATTR_EVENT_TYPE)
-        event_data = event.get(ATTR_EVENT_DATA)
-
-        if not event_type:
+        if new_state is None or entity_id:
+            _LOGGER.warning("Unable to process remove state change event due to missing properties")
             return
 
-        if event_type == EVENT_PUBLISH_STATES and state_pub_topic:
-            hass.add_job(_publish_states())
+        await self._hass.states.async_set(
+            entity_id,
+            new_state.state,
+            new_state.attributes or {}
+        )
+
+        await self._hass.bus.async_fire(
+            event_type=event.event_type,
+            event_data=event.data,
+            origin=EventOrigin.remote
+        )
+
+    async def publish_all_states(self,):
+        await asyncio.gather(
+            *[self._publish_state(_state_to_event(state))
+              for state
+              in self._hass.states.all()])
+
+    async def receive_service_call(self, msg):
+        pass
+
+    async def receive_remote_event(self, msg):
+        try:
+            event = _mqtt_payload_to_event(msg)
+        except Exception as err:
+            _LOGGER.error(str(err))
+            return
+        event_type = event.event_type
+        event_data = event.data
+
+        if event_type == EVENT_PUBLISH_STATES and self.state_publish_topic:
+            await self.publish_all_states()
             return
 
         # Special case handling for event STATE_CHANGED
@@ -234,7 +272,7 @@ def async_setup(hass, config):
 
         if event_type == EVENT_CALL_SERVICE:
             _LOGGER.debug('Got call service')
-            if not hass.services.has_service(
+            if not self._hass.services.has_service(
                     event_data.get(ATTR_DOMAIN),
                     event_data.get(ATTR_SERVICE)):
                 _LOGGER.debug('Ignoring %s %s',
@@ -251,53 +289,87 @@ def async_setup(hass, config):
             else:
                 filtered_entities = [entity_id for entity_id
                                      in original_entities
-                                     if _is_known_entity(entity_id)]
+                                     if self._is_known_entity(entity_id)]
             _LOGGER.debug('Filtered entity_id: %s',
                           str(filtered_entities))
             if ATTR_ENTITY_ID in service_data:
                 service_data[ATTR_ENTITY_ID] = filtered_entities
 
-            hass.loop.create_task(hass.services.async_call(
+            await self._hass.services.async_call(
                 event_data.get(ATTR_DOMAIN),
                 event_data.get(ATTR_SERVICE),
-                service_data))
+                service_data)
             return
+
         if event_type == EVENT_SERVICE_REGISTERED:
             domain = event_data.get(ATTR_DOMAIN)
-            service = event_data.get(ATTR_SERVICE)
-            if domain in hass.data and not hass.services.has_service(domain, service):
-                hass.services.async_register(
+            service_name = event_data.get(ATTR_SERVICE)
+            if domain in self._hass.data and not self._hass.services.has_service(domain,
+                                                                                 service_name):
+                await self._hass.services.async_register(
                     domain,
-                    service,
-                    _get_service_publisher(domain, service)
-                )
+                    service_name,
+                    lambda service: self.publish_event(
+                        Event(
+                            event_type=EVENT_CALL_SERVICE,
+                            data={
+                                ATTR_DOMAIN: domain,
+                                ATTR_SERVICE: service_name,
+                                ATTR_SERVICE_DATA: service.data or {}
+                            })))
                 return
-        else:
-            hass.bus.async_fire(
-                event_type, event_data=event_data, origin=EventOrigin.remote
-            )
 
-    # Only subscribe if you specified a topic
-    if sub_topic:
-        yield from mqtt.async_subscribe(sub_topic, _event_receiver)
+        self._hass.bus.async_fire(
+            event_type, event_data=event_data, origin=EventOrigin.remote
+        )
 
-    if rules_sub_topic:
-        yield from mqtt.async_subscribe(rules_sub_topic, _event_receiver)
-
-    # Process events from a remote server that are received on a queue.
-    @callback
-    def _state_receiver(msg):
-        """Receive states published by and fire them on this hass instance."""
-        event = json.loads(msg.payload)
-        event_type = event.get(ATTR_EVENT_TYPE)
-        event_data = event.get(ATTR_EVENT_DATA)
-
-        if event_type != EVENT_STATE_CHANGED:
+    async def publish_event(self, event):
+        """Handle events by publishing them on the MQTT queue."""
+        if event.origin != EventOrigin.local:
+            return
+        if event.event_type == EVENT_TIME_CHANGED \
+                or event.event_type in self.events_to_ignore \
+                or self._should_ignore(event.data):
             return
 
-        _handle_remote_state_change(event_data)
+        # Filter out the events that were triggered by publishing
+        # to the MQTT topic, or you will end up in an infinite loop.
+        if event.event_type == EVENT_CALL_SERVICE:
+            if (event.data.get(ATTR_DOMAIN) == MQTT_DOMAIN
+                    and event.data.get(ATTR_SERVICE) == MQTT_SERVICE_PUBLISH):
+                return
 
-    if state_sub_topic:
-        yield from mqtt.async_subscribe(state_sub_topic, _state_receiver)
+        if event.event_type == EVENT_STATE_CHANGED and self.state_publish_topic is not None:
+            await self._publish_state(event)
+            return
 
-    return True
+        if event.event_type == EVENT_TYPE_ROUTE_REGISTERED and self.route_publish_topic is not None:
+            await self._publish_api_route(event)
+            return
+
+        await self._mqtt.async_publish(
+            self.event_publish_topic,
+            _event_to_mqtt_payload(event))
+
+    async def _publish_api_route(self, event):
+        if event is None:
+            return
+
+        await self._mqtt.async_publish(
+            "%s/%s/%s/%s" % (
+                self.route_publish_topic,
+                event.data.get(ATTR_INSTANCE_NAME),
+                event.data.get(ATTR_METHOD),
+                event.data.get(ATTR_ROUTE)),
+            _event_to_mqtt_payload(event),
+            QOS_EXACTLY_ONCE,
+            True)
+
+    async def _publish_state(self, event):
+        if event is None:
+            return
+        await self._mqtt.async_publish(
+            self.state_publish_topic + "/" + event.data.get(ATTR_ENTITY_ID),
+            _event_to_mqtt_payload(event),
+            QOS_EXACTLY_ONCE,
+            True)
