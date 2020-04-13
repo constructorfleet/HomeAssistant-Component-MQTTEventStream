@@ -13,8 +13,6 @@ from homeassistant.components.mqtt import (
     valid_publish_topic,
     valid_subscribe_topic,
 )
-from homeassistant.components.frontend import EVENT_PANELS_UPDATED
-from homeassistant.components.lovelace import EVENT_LOVELACE_UPDATED
 from homeassistant.components.system_log import EVENT_SYSTEM_LOG
 from homeassistant.const import (
     ATTR_DOMAIN,
@@ -71,6 +69,8 @@ CONF_SUBSCRIBE_RULES_TOPIC = "subscribe_rules_topic"
 CONF_IGNORE_EVENT = "ignore_event"
 CONF_IGNORE_EVENT_DATA_PATTERNS = "ignore_event_data_patterns"
 
+EVENT_PANELS_UPDATED = 'panels_updated'
+EVENT_LOVELACE_UPDATED = 'lovelace_updated'
 EVENT_PUBLISH_STATES = "publish_states"
 EVENT_TYPE_ROUTE_REGISTERED = 'route_registered'
 EVENT_SERVICE_EXECUTED = 'service_executed'
