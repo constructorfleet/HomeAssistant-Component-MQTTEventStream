@@ -5,7 +5,8 @@
   "requirements": [
   ],
   "dependencies": [
-    "mqtt"
+    "mqtt",
+    "http"
   ],
   "codeowners": [
     "@teagan42"
