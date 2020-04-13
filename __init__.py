@@ -173,7 +173,7 @@ class MqttEventStream:
 
     async def initialize_if_connected(self):
         """Set up subscription and publish topics if MQTT is connected."""
-        if not self._mqtt.connected:
+        if not self._hass.data[MQTT_DOMAIN].connected:
             _LOGGER.warning('MQTT is not connected, will try again shortly.')
             return False
 
