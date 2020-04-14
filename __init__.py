@@ -357,15 +357,7 @@ class MqttEventStream:
                 await self._hass.services.async_register(
                     domain,
                     service_name,
-                    lambda service: await self.publish_event(
-                        Event(
-                            event_type=EVENT_CALL_SERVICE,
-                            data={
-                                ATTR_DOMAIN: domain,
-                                ATTR_SERVICE: service_name,
-                                ATTR_SERVICE_DATA: service.data or {}
-                            },
-                            origin=EventOrigin.remote)))
+                    self._service_callback)
                 return
 
         self._hass.bus.async_fire(
@@ -399,6 +391,17 @@ class MqttEventStream:
         await self._mqtt.async_publish(
             self.event_publish_topic,
             _event_to_mqtt_payload(event))
+
+    async def _service_callback(self, service_call):
+        await self.publish_event(
+            Event(
+                event_type=EVENT_CALL_SERVICE,
+                data={
+                    ATTR_DOMAIN: service_call.domain,
+                    ATTR_SERVICE: service_call.service,
+                    ATTR_SERVICE_DATA: service_call.data or {}
+                },
+                origin=EventOrigin.remote))
 
     async def _publish_api_route(self, event):
         if event is None:
