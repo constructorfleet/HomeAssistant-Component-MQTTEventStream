@@ -37,9 +37,9 @@ from homeassistant.const import (
     EVENT_TIMER_OUT_OF_SYNC,
     MATCH_ALL,
 )
-from homeassistant.core import EventOrigin, Event
-from homeassistant.helpers.json import JSONEncoder
+from homeassistant.core import EventOrigin, Event, callback
 from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
+from homeassistant.helpers.json import JSONEncoder
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -287,14 +287,16 @@ class MqttEventStream:
             origin=EventOrigin.remote
         )
 
-    async def publish_all_states(self,):
+    @callback
+    def publish_all_states(self,):
         """Publish all states to MQTT broker."""
         await asyncio.gather(
             *[self._publish_state(_state_to_event(state))
               for state
               in self._hass.states.all()])
 
-    async def receive_remote_event(self, msg):
+    @callback
+    def receive_remote_event(self, msg):
         """Handle an event received from a remote source."""
         try:
             event = _mqtt_payload_to_event(msg)
@@ -311,7 +313,7 @@ class MqttEventStream:
         event_data = event.get(ATTR_EVENT_DATA, {})
 
         if event_type == EVENT_PUBLISH_STATES and self.state_publish_topic:
-            await self.publish_all_states()
+            self.publish_all_states()
             return
 
         _LOGGER.debug('Received event %s %s',
@@ -343,10 +345,11 @@ class MqttEventStream:
             if ATTR_ENTITY_ID in service_data:
                 service_data[ATTR_ENTITY_ID] = filtered_entities
 
-            await self._hass.services.async_call(
-                event_data.get(ATTR_DOMAIN),
-                event_data.get(ATTR_SERVICE),
-                service_data)
+            self._hass.loop.create_task(
+                self._hass.services.async_call(
+                    event_data.get(ATTR_DOMAIN),
+                    event_data.get(ATTR_SERVICE),
+                    service_data))
             return
 
         if event_type == EVENT_SERVICE_REGISTERED:
@@ -354,7 +357,7 @@ class MqttEventStream:
             service_name = event_data.get(ATTR_SERVICE)
             if domain in self._hass.data and not self._hass.services.has_service(domain,
                                                                                  service_name):
-                await self._hass.services.async_register(
+                self._hass.services.async_register(
                     domain,
                     service_name,
                     self._service_callback)
@@ -364,7 +367,8 @@ class MqttEventStream:
             event_type, event_data=event_data, origin=EventOrigin.remote
         )
 
-    async def publish_event(self, event):
+    @callback
+    def publish_event(self, event):
         """Handle events by publishing them on the MQTT queue."""
         if event.origin != EventOrigin.local:
             return
@@ -381,19 +385,20 @@ class MqttEventStream:
                 return
 
         if event.event_type == EVENT_STATE_CHANGED and self.state_publish_topic is not None:
-            await self._publish_state(event)
+            self._publish_state(event)
             return
 
         if event.event_type == EVENT_TYPE_ROUTE_REGISTERED and self.route_publish_topic is not None:
-            await self._publish_api_route(event)
+            self._publish_api_route(event)
             return
 
-        await self._mqtt.async_publish(
+        self._mqtt.async_publish(
             self.event_publish_topic,
             _event_to_mqtt_payload(event))
 
-    async def _service_callback(self, service_call):
-        await self.publish_event(
+    @callback
+    def _service_callback(self, service_call):
+        self.publish_event(
             Event(
                 event_type=EVENT_CALL_SERVICE,
                 data={
@@ -403,11 +408,12 @@ class MqttEventStream:
                 },
                 origin=EventOrigin.remote))
 
-    async def _publish_api_route(self, event):
+    @callback
+    def _publish_api_route(self, event):
         if event is None:
             return
 
-        await self._mqtt.async_publish(
+        self._mqtt.async_publish(
             "%s/%s/%s/%s" % (
                 self.route_publish_topic,
                 event.data.get(ATTR_INSTANCE_NAME),
@@ -417,10 +423,11 @@ class MqttEventStream:
             QOS_EXACTLY_ONCE,
             True)
 
-    async def _publish_state(self, event):
+    @callback
+    def _publish_state(self, event):
         if event is None:
             return
-        await self._mqtt.async_publish(
+        self._mqtt.async_publish(
             self.state_publish_topic + "/" + event.data.get(ATTR_ENTITY_ID),
             _event_to_mqtt_payload(event),
             QOS_EXACTLY_ONCE,
