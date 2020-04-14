@@ -302,21 +302,16 @@ class MqttEventStream:
             _LOGGER.error(str(err))
             return
         event_type = event.get(ATTR_EVENT_TYPE, None)
-        if event_type is None:
+        # Special case handling for event STATE_CHANGED
+        # We will try to convert state dicts back to State objects
+        # Copied over from the _handle_api_post_events_event method
+        if event_type is None or EVENT_STATE_CHANGED == event_type:
             return
 
         event_data = event.get(ATTR_EVENT_DATA, {})
 
         if event_type == EVENT_PUBLISH_STATES and self.state_publish_topic:
             await self.publish_all_states()
-            return
-
-        # Special case handling for event STATE_CHANGED
-        # We will try to convert state dicts back to State objects
-        # Copied over from the _handle_api_post_events_event method
-        # of the api component.
-
-        if EVENT_STATE_CHANGED == event_type:
             return
 
         _LOGGER.debug('Received event %s %s',
