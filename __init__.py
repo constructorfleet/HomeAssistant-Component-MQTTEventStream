@@ -50,7 +50,7 @@ QOS_EXACTLY_ONCE = 2
 
 ATTR_ATTRIBUTES = "attributes"
 ATTR_EVENT_TYPE = "event_type"
-ATTR_EVENT_DATA = "event_data"
+ATTR_EVENT_DATA = "data"
 ATTR_EVENT_ORIGIN = "origin"
 ATTR_NEW_STATE = "new_state"
 ATTR_OLD_STATE = "old_state"
