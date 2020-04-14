@@ -357,14 +357,15 @@ class MqttEventStream:
                 await self._hass.services.async_register(
                     domain,
                     service_name,
-                    lambda service: self.publish_event(
+                    lambda service: await self.publish_event(
                         Event(
                             event_type=EVENT_CALL_SERVICE,
                             data={
                                 ATTR_DOMAIN: domain,
                                 ATTR_SERVICE: service_name,
                                 ATTR_SERVICE_DATA: service.data or {}
-                            })))
+                            },
+                            origin=EventOrigin.remote)))
                 return
 
         self._hass.bus.async_fire(
