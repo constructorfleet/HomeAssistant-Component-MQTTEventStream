@@ -124,7 +124,7 @@ def _mqtt_payload_to_event(msg):
 
 
 def _event_to_mqtt_payload(event):
-    return json.dumps(event, cls=JSONEncoder)
+    return json.dumps(event.as_dict(), cls=JSONEncoder)
 
 
 def _state_to_event(new_state, old_state=None):
@@ -260,9 +260,7 @@ class MqttEventStream:
 
         event_data = event.get(ATTR_EVENT_DATA, {})
         new_state = event_data.get(ATTR_NEW_STATE, None)
-        entity_id = event_data.get(
-            ATTR_ENTITY_ID,
-            event_data).get(ATTR_ENTITY_ID)
+        entity_id = event_data.get(ATTR_ENTITY_ID, None)
 
         if new_state is None or entity_id is None:
             _LOGGER.warning("Unable to process remote state change event due to missing properties")
