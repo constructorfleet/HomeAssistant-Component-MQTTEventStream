@@ -1,5 +1,4 @@
 """Connect two Home Assistant instances via MQTT."""
-import asyncio
 import copy
 import json
 import logging
@@ -288,12 +287,11 @@ class MqttEventStream:
         )
 
     @callback
-    def publish_all_states(self,):
+    def publish_all_states(self, ):
         """Publish all states to MQTT broker."""
-        await asyncio.gather(
-            *[self._publish_state(_state_to_event(state))
-              for state
-              in self._hass.states.all()])
+        for state in self._hass.states.all():
+            self._hass.loop.create_task(
+                self._publish_state(_state_to_event(state)))
 
     @callback
     def receive_remote_event(self, msg):
