@@ -246,7 +246,8 @@ class MqttEventStream:
         """List of event data patterns to ignore."""
         return self._config.get(CONF_IGNORE_EVENT_DATA_PATTERNS, [])
 
-    async def receive_state_change(self, msg):
+    @callback
+    def receive_state_change(self, msg):
         """Handle entity state change on a remote source."""
         try:
             event = _mqtt_payload_to_event(msg)
@@ -266,13 +267,13 @@ class MqttEventStream:
             _LOGGER.warning("Unable to process remote state change event due to missing properties")
             return
 
-        await self._hass.states.async_set(
+        self._hass.states.async_set(
             entity_id,
             new_state[ATTR_STATE],
             new_state[ATTR_ATTRIBUTES] or {}
         )
 
-        await self._hass.bus.async_fire(
+        self._hass.bus.async_fire(
             event_type=event_type,
             event_data=event_data,
             origin=EventOrigin.remote
