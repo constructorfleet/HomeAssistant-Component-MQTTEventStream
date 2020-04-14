@@ -184,7 +184,7 @@ class MqttEventStream:
         # Only subscribe if you specified a topic
         if self.event_subscribe_topic:
             await self._mqtt.async_subscribe(
-                self.state_subscribe_topic,
+                self.event_subscribe_topic,
                 self.receive_remote_event)
 
         if self.rules_engine_subscribe_topic:
