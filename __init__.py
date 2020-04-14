@@ -123,13 +123,6 @@ def _mqtt_payload_to_event(msg):
     return json.loads(msg.payload)
 
 
-def _event_to_dict(event):
-    return {
-        ATTR_EVENT_TYPE: event.event_type,
-        ATTR_EVENT_DATA: event.data
-    }
-
-
 def _event_to_mqtt_payload(event):
     return json.dumps(event, cls=JSONEncoder)
 
@@ -143,7 +136,8 @@ def _state_to_event(new_state, old_state=None):
             ATTR_ENTITY_ID: new_state.entity_id,
             ATTR_OLD_STATE: old_state.as_dict() if old_state is not None else None,
             ATTR_NEW_STATE: new_state.as_dict()
-        }
+        },
+        origin=EventOrigin.remote
     )
 
 
@@ -290,8 +284,7 @@ class MqttEventStream:
     def publish_all_states(self, ):
         """Publish all states to MQTT broker."""
         for state in self._hass.states.all():
-            self._hass.loop.create_task(
-                self._publish_state(_state_to_event(state)))
+            self._publish_state(_state_to_event(state))
 
     @callback
     def receive_remote_event(self, msg):
@@ -310,13 +303,13 @@ class MqttEventStream:
 
         event_data = event.get(ATTR_EVENT_DATA, {})
 
-        if event_type == EVENT_PUBLISH_STATES and self.state_publish_topic:
-            self.publish_all_states()
-            return
-
         _LOGGER.debug('Received event %s %s',
                       event_type,
                       str(event_data))
+
+        if event_type == EVENT_PUBLISH_STATES and self.state_publish_topic:
+            self.publish_all_states()
+            return
 
         if event_type == EVENT_CALL_SERVICE:
             _LOGGER.debug('Got call service')
@@ -368,7 +361,7 @@ class MqttEventStream:
     @callback
     def publish_event(self, event):
         """Handle events by publishing them on the MQTT queue."""
-        if event.origin != EventOrigin.local:
+        if event.origin != EventOrigin.remote:
             return
         if event.event_type == EVENT_TIME_CHANGED \
                 or event.event_type in self.events_to_ignore \
