@@ -261,10 +261,15 @@ class MqttEventStream:
             _LOGGER.error(str(err))
             return
 
-        new_state = event.data.get(ATTR_NEW_STATE, None)
-        entity_id = event.data.get(
+        event_type = event.get(ATTR_EVENT_TYPE, None)
+        if event_type is None:
+            return
+
+        event_data = event.get(ATTR_EVENT_DATA, {})
+        new_state = event_data.get(ATTR_NEW_STATE, None)
+        entity_id = event_data.get(
             ATTR_ENTITY_ID,
-            event.data.get(ATTR_NEW_STATE, {}).get(ATTR_ENTITY_ID))
+            event_data).get(ATTR_ENTITY_ID)
 
         if new_state is None or entity_id:
             _LOGGER.warning("Unable to process remove state change event due to missing properties")
@@ -277,8 +282,8 @@ class MqttEventStream:
         )
 
         await self._hass.bus.async_fire(
-            event_type=event.event_type,
-            event_data=event.data,
+            event_type=event_type,
+            event_data=event_data,
             origin=EventOrigin.remote
         )
 
@@ -296,8 +301,11 @@ class MqttEventStream:
         except Exception as err:
             _LOGGER.error(str(err))
             return
-        event_type = event.event_type
-        event_data = event.data
+        event_type = event.get(ATTR_EVENT_TYPE, None)
+        if event_type is None:
+            return
+
+        event_data = event.get(ATTR_EVENT_DATA, {})
 
         if event_type == EVENT_PUBLISH_STATES and self.state_publish_topic:
             await self.publish_all_states()
