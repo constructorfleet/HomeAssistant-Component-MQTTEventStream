@@ -359,7 +359,7 @@ class MqttEventStream:
     @callback
     def publish_event(self, event):
         """Handle events by publishing them on the MQTT queue."""
-        if event.origin != EventOrigin.remote:
+        if event.origin == EventOrigin.remote:
             return
         if event.event_type == EVENT_TIME_CHANGED \
                 or event.event_type in self.events_to_ignore \
