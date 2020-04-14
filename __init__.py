@@ -246,7 +246,7 @@ class MqttEventStream:
     @property
     def events_to_ignore(self):
         """List of event types to ignore."""
-        return ALWAYS_IGNORED_EVENTS.copy().extend(
+        return ALWAYS_IGNORED_EVENTS.extend(
             self._config.get(CONF_IGNORE_EVENT,
                              []))
 
