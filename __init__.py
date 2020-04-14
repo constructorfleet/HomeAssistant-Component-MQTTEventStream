@@ -270,8 +270,8 @@ class MqttEventStream:
             ATTR_ENTITY_ID,
             event_data).get(ATTR_ENTITY_ID)
 
-        if new_state is None or entity_id:
-            _LOGGER.warning("Unable to process remove state change event due to missing properties")
+        if new_state is None or entity_id is None:
+            _LOGGER.warning("Unable to process remote state change event due to missing properties")
             return
 
         await self._hass.states.async_set(
