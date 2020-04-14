@@ -18,6 +18,7 @@ from homeassistant.const import (
     ATTR_ENTITY_ID,
     ATTR_SERVICE,
     ATTR_SERVICE_DATA,
+    ATTR_STATE,
     EVENT_CALL_SERVICE,
     EVENT_SERVICE_REGISTERED,
     EVENT_PLATFORM_DISCOVERED,
@@ -34,8 +35,7 @@ from homeassistant.const import (
     EVENT_THEMES_UPDATED,
     EVENT_SERVICE_REMOVED,
     EVENT_TIMER_OUT_OF_SYNC,
-    MATCH_ALL,
-)
+    MATCH_ALL)
 from homeassistant.core import EventOrigin, Event, callback
 from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
 from homeassistant.helpers.json import JSONEncoder
@@ -268,8 +268,8 @@ class MqttEventStream:
 
         await self._hass.states.async_set(
             entity_id,
-            new_state.state,
-            new_state.attributes or {}
+            new_state[ATTR_STATE],
+            new_state[ATTR_ATTRIBUTES] or {}
         )
 
         await self._hass.bus.async_fire(
