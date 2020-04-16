@@ -332,6 +332,9 @@ class MqttEventStream:
                                      if self._is_known_entity(entity_id)]
             _LOGGER.debug('Filtered entity_id: %s',
                           str(filtered_entities))
+            if len(filtered_entities) == 0:
+                return
+
             if ATTR_ENTITY_ID in service_data:
                 service_data[ATTR_ENTITY_ID] = filtered_entities
 
