@@ -132,7 +132,6 @@ def _event_to_mqtt_payload(event):
 def _state_to_event(new_state, old_state=None):
     if new_state is None:
         return None
-    [domain, object_id] = split_entity_id(new_state.entity_id)
     new_state_dict = new_state.as_dict()
     old_state_dict = old_state.as_dict() if old_state is not None else new_state.as_dict()
     new_state_dict[ATTR_DOMAIN] = new_state.domain
