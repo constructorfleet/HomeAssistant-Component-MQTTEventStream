@@ -16,6 +16,7 @@ from homeassistant.components.system_log import EVENT_SYSTEM_LOG
 from homeassistant.const import (
     ATTR_DOMAIN,
     ATTR_ENTITY_ID,
+    ATTR_NAME,
     ATTR_SERVICE,
     ATTR_SERVICE_DATA,
     ATTR_STATE,
@@ -36,7 +37,7 @@ from homeassistant.const import (
     EVENT_SERVICE_REMOVED,
     EVENT_TIMER_OUT_OF_SYNC,
     MATCH_ALL)
-from homeassistant.core import EventOrigin, Event, callback
+from homeassistant.core import EventOrigin, Event, callback, split_entity_id
 from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
 from homeassistant.helpers.json import JSONEncoder
 
@@ -53,6 +54,7 @@ ATTR_EVENT_TYPE = "event_type"
 ATTR_EVENT_DATA = "data"
 ATTR_EVENT_ORIGIN = "origin"
 ATTR_NEW_STATE = "new_state"
+ATTR_OBJECT_ID = "object_id"
 ATTR_OLD_STATE = "old_state"
 ATTR_SOURCE = "source"
 ATTR_ROUTE = "route"
@@ -130,12 +132,22 @@ def _event_to_mqtt_payload(event):
 def _state_to_event(new_state, old_state=None):
     if new_state is None:
         return None
+    [domain, object_id] = split_entity_id(new_state.entity_id)
+    new_state_dict = new_state.as_dict()
+    old_state_dict = old_state.as_dict() if old_state is not None else new_state.as_dict()
+    new_state_dict[ATTR_DOMAIN] = new_state.domain
+    new_state_dict[ATTR_OBJECT_ID] = new_state.object_id
+    new_state_dict[ATTR_NAME] = new_state.name
+    old_state_dict[ATTR_DOMAIN] = old_state.domain
+    old_state_dict[ATTR_OBJECT_ID] = old_state.object_id
+    old_state_dict[ATTR_NAME] = old_state.name
+
     return Event(
         event_type=EVENT_STATE_CHANGED,
         data={
             ATTR_ENTITY_ID: new_state.entity_id,
-            ATTR_OLD_STATE: old_state.as_dict() if old_state is not None else new_state.as_dict(),
-            ATTR_NEW_STATE: new_state.as_dict()
+            ATTR_OLD_STATE: old_state_dict,
+            ATTR_NEW_STATE: new_state_dict
         },
         origin=EventOrigin.remote
     )
