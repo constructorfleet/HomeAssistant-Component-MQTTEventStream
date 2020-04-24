@@ -134,7 +134,7 @@ def _state_to_event(new_state, old_state=None):
         event_type=EVENT_STATE_CHANGED,
         data={
             ATTR_ENTITY_ID: new_state.entity_id,
-            ATTR_OLD_STATE: old_state.as_dict() if old_state is not None else None,
+            ATTR_OLD_STATE: old_state.as_dict() if old_state is not None else new_state.as_dict(),
             ATTR_NEW_STATE: new_state.as_dict()
         },
         origin=EventOrigin.remote
