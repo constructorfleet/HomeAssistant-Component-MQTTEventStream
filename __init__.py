@@ -134,22 +134,24 @@ def _state_to_event(new_state, old_state=None):
         return None
     new_state_dict = new_state.as_dict()
     old_state_dict = old_state.as_dict() if old_state is not None else new_state.as_dict()
-    new_state_dict[ATTR_DOMAIN] = new_state.domain
-    new_state_dict[ATTR_OBJECT_ID] = new_state.object_id
-    new_state_dict[ATTR_NAME] = new_state.name
-    old_state_dict[ATTR_DOMAIN] = old_state.domain
-    old_state_dict[ATTR_OBJECT_ID] = old_state.object_id
-    old_state_dict[ATTR_NAME] = old_state.name
 
     return Event(
         event_type=EVENT_STATE_CHANGED,
         data={
             ATTR_ENTITY_ID: new_state.entity_id,
-            ATTR_OLD_STATE: old_state_dict,
-            ATTR_NEW_STATE: new_state_dict
+            ATTR_OLD_STATE: _add_state_attributes(new_state_dict, new_state.entity_id),
+            ATTR_NEW_STATE: _add_state_attributes(old_state_dict, new_state.entity_id)
         },
         origin=EventOrigin.remote
     )
+
+
+def _add_state_attributes(state_dict, entity_id):
+    [domain, object_id] = split_entity_id(entity_id)
+    state_dict[ATTR_DOMAIN] = domain
+    state_dict[ATTR_OBJECT_ID] object_id
+
+    return state_dict
 
 
 # pylint: disable=R0914
