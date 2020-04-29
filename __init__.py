@@ -132,26 +132,25 @@ def _event_to_mqtt_payload(event):
 def _state_to_event(new_state, old_state=None):
     if new_state is None:
         return None
-    new_state_dict = new_state.as_dict()
-    old_state_dict = old_state.as_dict() if old_state is not None else new_state.as_dict()
+    old_state = old_state if old_state is not None else new_state
 
     return Event(
         event_type=EVENT_STATE_CHANGED,
         data={
             ATTR_ENTITY_ID: new_state.entity_id,
-            ATTR_OLD_STATE: _add_state_attributes(new_state_dict, new_state.entity_id),
-            ATTR_NEW_STATE: _add_state_attributes(old_state_dict, new_state.entity_id)
+            ATTR_OLD_STATE: _add_state_attributes(new_state, new_state.entity_id),
+            ATTR_NEW_STATE: _add_state_attributes(old_state, new_state.entity_id)
         },
         origin=EventOrigin.remote
     )
 
 
-def _add_state_attributes(state_dict, entity_id):
+def _add_state_attributes(state, entity_id):
     [domain, object_id] = split_entity_id(entity_id)
-    state_dict[ATTR_DOMAIN] = domain
-    state_dict[ATTR_OBJECT_ID] object_id
+    state.domain = domain
+    state.object_id = object_id
 
-    return state_dict
+    return state
 
 
 # pylint: disable=R0914
@@ -285,6 +284,12 @@ class MqttEventStream:
             new_state[ATTR_STATE],
             new_state[ATTR_ATTRIBUTES] or {}
         )
+
+        event_data[ATTR_NEW_STATE] = _add_state_attributes(new_state, entity_id)
+        if ATTR_OLD_STATE not in event_data:
+            event_data[ATTR_OLD_STATE] = event_data[ATTR_NEW_STATE]
+        else:
+            event_data[ATTR_OLD_STATE] = _add_state_attributes(event_data[ATTR_OLD_STATE], entity_id)
 
         self._hass.bus.async_fire(
             event_type=event_type,
