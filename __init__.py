@@ -16,6 +16,7 @@ from homeassistant.components.system_log import EVENT_SYSTEM_LOG
 from homeassistant.const import (
     ATTR_DOMAIN,
     ATTR_ENTITY_ID,
+    ATTR_NAME,
     ATTR_SERVICE,
     ATTR_SERVICE_DATA,
     ATTR_STATE,
@@ -284,14 +285,6 @@ class MqttEventStream:
             new_state[ATTR_STATE],
             new_state[ATTR_ATTRIBUTES] or {}
         )
-
-        event_data[ATTR_NEW_STATE] = _add_state_attributes(new_state, entity_id)
-        if ATTR_OLD_STATE not in event_data:
-            event_data[ATTR_OLD_STATE] = event_data[ATTR_NEW_STATE]
-        else:
-            event_data[ATTR_OLD_STATE] = _add_state_attributes(
-                event_data[ATTR_OLD_STATE],
-                entity_id)
 
         self._hass.bus.async_fire(
             event_type=event_type,
