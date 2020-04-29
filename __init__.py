@@ -289,7 +289,9 @@ class MqttEventStream:
         if ATTR_OLD_STATE not in event_data:
             event_data[ATTR_OLD_STATE] = event_data[ATTR_NEW_STATE]
         else:
-            event_data[ATTR_OLD_STATE] = _add_state_attributes(event_data[ATTR_OLD_STATE], entity_id)
+            event_data[ATTR_OLD_STATE] = _add_state_attributes(
+                event_data[ATTR_OLD_STATE],
+                entity_id)
 
         self._hass.bus.async_fire(
             event_type=event_type,
