@@ -37,7 +37,7 @@ from homeassistant.const import (
     EVENT_SERVICE_REMOVED,
     EVENT_TIMER_OUT_OF_SYNC,
     MATCH_ALL)
-from homeassistant.core import EventOrigin, Event, callback, split_entity_id
+from homeassistant.core import EventOrigin, Event, callback, split_entity_id, State
 from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
 from homeassistant.helpers.json import JSONEncoder
 
@@ -285,6 +285,12 @@ class MqttEventStream:
             new_state[ATTR_STATE],
             new_state[ATTR_ATTRIBUTES] or {}
         )
+
+        for key in ("old_state", "new_state"):
+            state = State.from_dict(event_data.get(key))
+
+            if state:
+                event_data[key] = state
 
         self._hass.bus.async_fire(
             event_type=event_type,
