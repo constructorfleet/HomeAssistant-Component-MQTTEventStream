@@ -16,7 +16,6 @@ from homeassistant.components.system_log import EVENT_SYSTEM_LOG
 from homeassistant.const import (
     ATTR_DOMAIN,
     ATTR_ENTITY_ID,
-    ATTR_NAME,
     ATTR_SERVICE,
     ATTR_SERVICE_DATA,
     ATTR_STATE,
@@ -132,25 +131,26 @@ def _event_to_mqtt_payload(event):
 def _state_to_event(new_state, old_state=None):
     if new_state is None:
         return None
-    old_state = old_state if old_state is not None else new_state
+    new_state_dict = new_state.as_dict()
+    old_state_dict = old_state.as_dict() if old_state is not None else new_state.as_dict()
 
     return Event(
         event_type=EVENT_STATE_CHANGED,
         data={
             ATTR_ENTITY_ID: new_state.entity_id,
-            ATTR_OLD_STATE: _add_state_attributes(new_state, new_state.entity_id),
-            ATTR_NEW_STATE: _add_state_attributes(old_state, new_state.entity_id)
+            ATTR_OLD_STATE: _add_state_attributes(new_state_dict, new_state.entity_id),
+            ATTR_NEW_STATE: _add_state_attributes(old_state_dict, new_state.entity_id)
         },
         origin=EventOrigin.remote
     )
 
 
-def _add_state_attributes(state, entity_id):
+def _add_state_attributes(state_dict, entity_id):
     [domain, object_id] = split_entity_id(entity_id)
-    state.domain = domain
-    state.object_id = object_id
+    state_dict[ATTR_DOMAIN] = domain
+    state_dict[ATTR_OBJECT_ID] = object_id
 
-    return state
+    return state_dict
 
 
 # pylint: disable=R0914
