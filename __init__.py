@@ -219,6 +219,16 @@ class MqttEventStream:
     def _is_known_entity(self, entity_id):
         return self._hass.states.get(entity_id) is not None
 
+    @staticmethod
+    def _event_data_to_state(event_data):
+        for key in ("old_state", "new_state"):
+            state = State.from_dict(event_data.get(key))
+
+            if state:
+                event_data[key] = state
+
+        return event_data
+
     @property
     def event_publish_topic(self):
         """NQTT topic for which events on the bus are also publisehed to."""
@@ -286,15 +296,9 @@ class MqttEventStream:
             new_state[ATTR_ATTRIBUTES] or {}
         )
 
-        for key in ("old_state", "new_state"):
-            state = State.from_dict(event_data.get(key))
-
-            if state:
-                event_data[key] = state
-
         self._hass.bus.async_fire(
             event_type=event_type,
-            event_data=event_data,
+            event_data=self._event_data_to_state(event_data),
             origin=EventOrigin.remote
         )
 
@@ -437,6 +441,7 @@ class MqttEventStream:
     def _publish_state(self, event):
         if event is None:
             return
+
         self._mqtt.async_publish(
             self.state_publish_topic + "/" + event.data.get(ATTR_ENTITY_ID),
             _event_to_mqtt_payload(event),
