@@ -344,26 +344,33 @@ class MqttEventStream:
                 return
             service_data = copy.deepcopy(event_data.get(ATTR_SERVICE_DATA, {}))
             original_entities = event_data.get(ATTR_SERVICE_DATA, {}).get(ATTR_ENTITY_ID, [])
-            filtered_entities = []
-            _LOGGER.debug('Original entity_id: %s',
-                          str(original_entities))
-            if isinstance(original_entities, str):
-                filtered_entities.append(original_entities)
+            if len(original_entities) == 0:
+                self._hass.loop.create_task(
+                    self._hass.services.async_call(
+                        event_data.get(ATTR_DOMAIN),
+                        event_data.get(ATTR_SERVICE),
+                        service_data))
             else:
-                filtered_entities = [entity_id for entity_id
-                                     in original_entities
-                                     if self._is_known_entity(entity_id)]
-            _LOGGER.debug('Filtered entity_id: %s',
-                          str(filtered_entities))
-            if len(filtered_entities) != 0 and len(original_entities) != 0:
-                if ATTR_ENTITY_ID in service_data:
-                    service_data[ATTR_ENTITY_ID] = filtered_entities
+                filtered_entities = []
+                _LOGGER.debug('Original entity_id: %s',
+                              str(original_entities))
+                if isinstance(original_entities, str):
+                    filtered_entities.append(original_entities)
+                else:
+                    filtered_entities = [entity_id for entity_id
+                                         in original_entities
+                                         if self._is_known_entity(entity_id)]
+                _LOGGER.debug('Filtered entity_id: %s',
+                              str(filtered_entities))
+                if len(filtered_entities) != 0:
+                    if ATTR_ENTITY_ID in service_data:
+                        service_data[ATTR_ENTITY_ID] = filtered_entities
 
-            self._hass.loop.create_task(
-                self._hass.services.async_call(
-                    event_data.get(ATTR_DOMAIN),
-                    event_data.get(ATTR_SERVICE),
-                    service_data))
+                    self._hass.loop.create_task(
+                        self._hass.services.async_call(
+                            event_data.get(ATTR_DOMAIN),
+                            event_data.get(ATTR_SERVICE),
+                            service_data))
             return
 
         if event_type == EVENT_SERVICE_REGISTERED:
