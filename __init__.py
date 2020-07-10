@@ -176,6 +176,7 @@ class MqttEventStream:
         self._hass = hass
         self._mqtt = mqtt
         self._config = config
+        self._remote_entity_ids = set()
 
     async def initialize_if_connected(self):
         """Set up subscription and publish topics if MQTT is connected."""
@@ -217,7 +218,8 @@ class MqttEventStream:
         return False
 
     def _is_known_entity(self, entity_id):
-        return self._hass.states.get(entity_id) is not None
+        return self._hass.states.get(entity_id) is not None\
+               and entity_id not in self._remote_entity_ids
 
     @staticmethod
     def _event_data_to_state(event_data):
@@ -289,6 +291,8 @@ class MqttEventStream:
         if new_state is None or entity_id is None:
             _LOGGER.warning("Unable to process remote state change event due to missing properties")
             return
+
+        self._remote_entity_ids.add(entity_id)
 
         self._hass.states.async_set(
             entity_id,
@@ -441,7 +445,7 @@ class MqttEventStream:
 
     @callback
     def _publish_state(self, event):
-        if event is None:
+        if event is None or event.data.get(ATTR_ENTITY_ID) in self._remote_entity_ids:
             return
 
         self._mqtt.async_publish(
