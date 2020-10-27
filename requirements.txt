@@ -8,7 +8,7 @@ certifi==2019.9.11
 cffi==1.13.2
 chardet==3.0.4
 Click==7.0
-cryptography==2.6.1
+cryptography==3.2
 decorator==4.4.1
 future==0.18.2
 geocoder==1.38.1
@@ -47,7 +47,7 @@ certifi==2019.9.11
 cffi==1.13.2
 chardet==3.0.4
 Click==7.0
-cryptography==2.6.1
+cryptography==3.2
 decorator==4.4.1
 future==0.18.2
 geocoder==1.38.1
